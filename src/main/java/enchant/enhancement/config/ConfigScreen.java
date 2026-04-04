@@ -95,7 +95,8 @@ public class ConfigScreen extends Screen {
     }
     
     private Text getToggleText(boolean enabled) {
-        return Text.literal(enabled ? "开启" : "关闭").withColor(enabled ? 0xFFB1EAC2 : 0xFFF9867D);
+        String key = enabled ? "config.enchant_enhancement.toggle.on" : "config.enchant_enhancement.toggle.off";
+        return Text.translatable(key).withColor(enabled ? 0xFFB1EAC2 : 0xFFF9867D);
     }
     
     private void handleResetButton() {

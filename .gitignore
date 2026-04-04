@@ -1,0 +1,38 @@
+# Gradle
+.gradle/
+build/
+run/
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# Build outputs
+build/libs/
+build/dists/
+build/tmp/
+build/classes/
+
+# Local configuration files
+local.properties
+
+# Test reports
+build/reports/

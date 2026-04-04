@@ -43,5 +43,7 @@
   "config.enchant_enhancement.group.weapons": "Swords/Axes/Hammers",
   "config.enchant_enhancement.group.bows": "Bows/Crossbows",
   "config.enchant_enhancement.group.tridents": "Tridents",
-  "config.enchant_enhancement.group.general": "General"
+  "config.enchant_enhancement.group.general": "General",
+  "config.enchant_enhancement.toggle.on": "On",
+  "config.enchant_enhancement.toggle.off": "Off"
 }

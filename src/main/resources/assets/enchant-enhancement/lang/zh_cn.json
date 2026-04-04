@@ -44,5 +44,7 @@
   "config.enchant_enhancement.group.weapons": "剑/斧/重锤",
   "config.enchant_enhancement.group.bows": "弓/弩",
   "config.enchant_enhancement.group.tridents": "三叉戟",
-  "config.enchant_enhancement.group.general": "通用"
+  "config.enchant_enhancement.group.general": "通用",
+  "config.enchant_enhancement.toggle.on": "开启",
+  "config.enchant_enhancement.toggle.off": "关闭"
 }
