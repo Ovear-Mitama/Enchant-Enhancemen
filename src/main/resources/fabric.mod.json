@@ -1,0 +1,38 @@
+{
+	"schemaVersion": 1,
+	"id": "enchant-enhancement",
+	"version": "${version}",
+	"name": "Enchant Enhancement",
+	"description": "Modify enchantment mechanics and improvements.",
+	"authors": [
+		"mitama"
+	],
+	"contact": {
+		"homepage": "https://modrinth.com/mod/enchant-enhancemen",
+		"sources": "https://github.com/Ovear-Mitama/Enchant-Enhancemen",
+		"issues": "https://github.com/Ovear-Mitama/Enchant-Enhancemen/issues"
+	},
+	"license": "Apache-2.0",
+	"icon": "assets/enchant-enhancement/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"enchant.enhancement.EnchantEnhancement"
+		],
+		"client": [
+			"enchant.enhancement.client.KeyBindings"
+		],
+		"modmenu": [
+			"enchant.enhancement.integration.ModMenuIntegration"
+		]
+	},
+	"mixins": [
+		"enchant-enhancement.mixins.json"
+	],
+	"depends": {
+		"fabricloader": ">=0.18.5",
+		"minecraft": ">=1.21 <=1.21.3",
+		"java": ">=21",
+		"fabric-api": "*"
+	}
+}
