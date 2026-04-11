@@ -352,6 +352,10 @@ public class EnchantmentConfig {
     
     public static void resetToDefaults() {
         loadIfNeeded();
+        // 确保默认值已初始化
+        if (DEFAULT_LEVELS.isEmpty()) {
+            initializeDefaults();
+        }
         // 将所有附魔等级重置为默认值
         MAX_LEVELS.clear();
         for (Map.Entry<String, Integer> entry : DEFAULT_LEVELS.entrySet()) {

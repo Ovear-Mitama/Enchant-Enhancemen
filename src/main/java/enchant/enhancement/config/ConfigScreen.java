@@ -473,9 +473,9 @@ public class ConfigScreen extends Screen {
 
     
     private void saveChanges() {
-        for (EnchantmentEntry entry : allEntries) {
+        for (Map.Entry<Identifier, Integer> entry : enchantmentLevels.entrySet()) {
             try {
-                EnchantmentConfig.setMaxLevel(entry.enchantmentId, entry.getLevel());
+                EnchantmentConfig.setMaxLevel(entry.getKey(), entry.getValue());
             } catch (Exception e) {
             }
         }
@@ -1356,6 +1356,9 @@ public class ConfigScreen extends Screen {
                 // 重新从配置获取所有等级
                 ConfigScreen.this.enchantmentLevels.clear();
                 ConfigScreen.this.enchantmentLevels.putAll(EnchantmentConfig.getAllLevels());
+                
+                // 清除分组展开状态，确保所有分组都初始化为收起状态
+                ConfigScreen.this.groupExpandedStates.clear();
                 
                 // 重新初始化附魔分组
                 ConfigScreen.this.initializeGroups();
