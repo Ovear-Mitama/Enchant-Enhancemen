@@ -65,30 +65,35 @@ public class EnchantmentCompatibilityMixin {
             if (EnchantmentConfig.isBowLootingEnchantment()) {
                 boolean selfIsLooting = "minecraft:looting".equals(selfId.toString());
                 boolean otherIsLooting = "minecraft:looting".equals(otherId.toString());
+                
                 if ((selfIsLooting && isBowEnchantment(otherId)) ||
                     (otherIsLooting && isBowEnchantment(selfId))) {
                     return true;
                 }
             }
             
+            // 允许经验修补和无限共存
+            String selfIdStr = selfId != null ? selfId.toString() : "";
+            String otherIdStr = otherId != null ? otherId.toString() : "";
+            boolean selfIsMending = "minecraft:mending".equals(selfIdStr);
+            boolean otherIsMending = "minecraft:mending".equals(otherIdStr);
+            boolean selfIsInfinity = "minecraft:infinity".equals(selfIdStr);
+            boolean otherIsInfinity = "minecraft:infinity".equals(otherIdStr);
+            
+            if ((selfIsMending && otherIsInfinity) || (otherIsMending && selfIsInfinity)) {
+                return true;
+            }
+            
             // 三叉戟附魔拓展
             if (EnchantmentConfig.isTridentEnchantmentExpansion()) {
-                // 允许三叉戟附魔锋利、亡灵杀手、节肢杀手、击退、火焰附加、抢夺、快速装填
+                // 允许三叉戟附魔锋利、亡灵杀手、节肢杀手、击退、火焰附加、抢夺、穿刺
                 boolean selfIsTridentExpansion = isTridentExpansionEnchantment(selfId);
                 boolean otherIsTridentExpansion = isTridentExpansionEnchantment(otherId);
                 if (selfIsTridentExpansion && otherIsTridentExpansion) {
                     // 允许三叉戟拓展附魔共存
                     return true;
                 }
-                // 快速装填与激流、忠诚、唤雷、穿刺共存
-                boolean selfIsQuickCharge = "minecraft:quick_charge".equals(selfId.toString());
-                boolean otherIsQuickCharge = "minecraft:quick_charge".equals(otherId.toString());
-                boolean selfIsTridentSpecific = isTridentSpecificEnchantment(selfId);
-                boolean otherIsTridentSpecific = isTridentSpecificEnchantment(otherId);
-                if ((selfIsQuickCharge && otherIsTridentSpecific) ||
-                    (otherIsQuickCharge && selfIsTridentSpecific)) {
-                    return true;
-                }
+
             }
             
             // 特殊兼容组合（原版不允许但合理的组合）
@@ -96,13 +101,6 @@ public class EnchantmentCompatibilityMixin {
             boolean isRiptide = "minecraft:riptide".equals(selfId.toString()) || "minecraft:riptide".equals(otherId.toString());
             boolean isLoyalty = "minecraft:loyalty".equals(selfId.toString()) || "minecraft:loyalty".equals(otherId.toString());
             boolean isChanneling = "minecraft:channeling".equals(selfId.toString()) || "minecraft:channeling".equals(otherId.toString());
-            boolean isQuickCharge = "minecraft:quick_charge".equals(selfId.toString()) || "minecraft:quick_charge".equals(otherId.toString());
-            boolean isImpaling = "minecraft:impaling".equals(selfId.toString()) || "minecraft:impaling".equals(otherId.toString());
-            
-            // 允许三叉戟附魔与快速装填共存
-            if ((isRiptide || isLoyalty || isChanneling || isImpaling) && isQuickCharge) {
-                return true;
-            }
             
             // 允许激流与忠诚共存
             if (isRiptide && isLoyalty) {
@@ -184,14 +182,6 @@ public class EnchantmentCompatibilityMixin {
                idStr.equals("minecraft:knockback") ||
                idStr.equals("minecraft:fire_aspect") ||
                idStr.equals("minecraft:looting") ||
-               idStr.equals("minecraft:quick_charge");
-    }
-    
-    private static boolean isTridentSpecificEnchantment(Identifier id) {
-        String idStr = id.toString();
-        return idStr.equals("minecraft:riptide") ||
-               idStr.equals("minecraft:loyalty") ||
-               idStr.equals("minecraft:channeling") ||
                idStr.equals("minecraft:impaling");
     }
     

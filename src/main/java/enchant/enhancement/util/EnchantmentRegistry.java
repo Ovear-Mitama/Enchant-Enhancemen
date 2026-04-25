@@ -53,6 +53,7 @@ public class EnchantmentRegistry {
         CHINESE_NAME_TO_ID.put("快速装填", Identifier.of("minecraft", "quick_charge"));
         CHINESE_NAME_TO_ID.put("灵魂疾行", Identifier.of("minecraft", "soul_speed"));
         CHINESE_NAME_TO_ID.put("迅捷潜行", Identifier.of("minecraft", "swift_sneak"));
+        CHINESE_NAME_TO_ID.put("经验修补", Identifier.of("minecraft", "mending"));
     }
     
     public static Identifier getId(Enchantment enchantment) {

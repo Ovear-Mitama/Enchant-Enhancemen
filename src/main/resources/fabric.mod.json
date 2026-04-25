@@ -3,7 +3,7 @@
 	"id": "enchant-enhancement",
 	"version": "${version}",
 	"name": "Enchant Enhancement",
-	"description": "Modify enchantment mechanics and improvements.",
+	"description": "提升附魔等级上限，修改原版附魔兼容性和优化。",
 	"authors": [
 		"mitama"
 	],

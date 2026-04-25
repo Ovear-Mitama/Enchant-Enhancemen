@@ -22,13 +22,17 @@ public class EnchantmentConfig {
     // 常规配置
     private static boolean mergeHighEnchantments = true;
     private static boolean lootHighEnchantments = true;
+    private static boolean creatureHighEnchantmentArmor = false;
     private static boolean armorProtectionCompatibility = true;
     private static boolean weaponEnchantmentCompatibility = true;
-    private static boolean axeEnchantmentExpansion = false;
+    private static boolean axeEnchantmentExpansion = true;
     private static boolean bowLootingEnchantment = true;
     private static boolean tridentEnchantmentExpansion = true;
     private static boolean infinityWithoutArrow = true;
     private static boolean loaded = false;
+    // 同步相关
+    private static boolean isServer = false;
+    private static boolean isConfigSynced = false;
     
     public static Integer getMaxLevel(Identifier enchantmentId) {
         loadIfNeeded();
@@ -52,96 +56,115 @@ public class EnchantmentConfig {
     }
     
     public static void save() {
-        try {
-            ensureConfigDir();
-            Map<String, Object> configMap = new HashMap<>();
-            Map<String, Object> generalConfig = new HashMap<>();
-            generalConfig.put("mergeHighEnchantments", mergeHighEnchantments);
-            generalConfig.put("lootHighEnchantments", lootHighEnchantments);
-            generalConfig.put("armorProtectionCompatibility", armorProtectionCompatibility);
-            generalConfig.put("weaponEnchantmentCompatibility", weaponEnchantmentCompatibility);
-            generalConfig.put("axeEnchantmentExpansion", axeEnchantmentExpansion);
-            generalConfig.put("bowLootingEnchantment", bowLootingEnchantment);
-            generalConfig.put("tridentEnchantmentExpansion", tridentEnchantmentExpansion);
-            generalConfig.put("infinityWithoutArrow", infinityWithoutArrow);
-            configMap.put("general", generalConfig);
-            configMap.put("enchantments", MAX_LEVELS);
-            
-            try (BufferedWriter writer = Files.newBufferedWriter(CONFIG_FILE)) {
-                GSON.toJson(configMap, writer);
+        // 只有在服务端或未同步配置的情况下才保存
+        if (isServer || !isConfigSynced) {
+            try {
+                ensureConfigDir();
+                Map<String, Object> configMap = new HashMap<>();
+                Map<String, Object> generalConfig = new HashMap<>();
+                generalConfig.put("mergeHighEnchantments", mergeHighEnchantments);
+                generalConfig.put("lootHighEnchantments", lootHighEnchantments);
+                generalConfig.put("creatureHighEnchantmentArmor", creatureHighEnchantmentArmor);
+                generalConfig.put("armorProtectionCompatibility", armorProtectionCompatibility);
+                generalConfig.put("weaponEnchantmentCompatibility", weaponEnchantmentCompatibility);
+                generalConfig.put("axeEnchantmentExpansion", axeEnchantmentExpansion);
+                generalConfig.put("bowLootingEnchantment", bowLootingEnchantment);
+                generalConfig.put("tridentEnchantmentExpansion", tridentEnchantmentExpansion);
+                generalConfig.put("infinityWithoutArrow", infinityWithoutArrow);
+                configMap.put("general", generalConfig);
+                configMap.put("enchantments", MAX_LEVELS);
+                
+                try (BufferedWriter writer = Files.newBufferedWriter(CONFIG_FILE)) {
+                    GSON.toJson(configMap, writer);
+                }
+                
+                // 如果是服务端（开服的客户端），保存后向所有在线玩家同步配置
+                if (isServer) {
+                    syncConfigToAllPlayers(generalConfig, MAX_LEVELS);
+                }
+            } catch (IOException e) {
             }
-        } catch (IOException e) {
         }
     }
     
+    // 向所有在线玩家同步配置
+    private static void syncConfigToAllPlayers(Map<String, Object> generalConfig, Map<String, Integer> enchantmentsConfig) {
+        // 由于在静态上下文中获取服务器实例比较复杂，这里暂时注释掉
+        // 实际使用中，配置同步主要通过玩家加入事件触发
+    }
+    
     public static void load() {
-        try {
-            ensureConfigDir();
-        } catch (IOException e) {
-        }
-        
-        if (Files.exists(CONFIG_FILE)) {
-            try (BufferedReader reader = Files.newBufferedReader(CONFIG_FILE)) {
-                // 解析JSON为Map
-                Map<String, Object> configMap = GSON.fromJson(reader, new TypeToken<Map<String, Object>>(){}.getType());
-                if (configMap != null) {
-                    // 加载常规配置
-                    if (configMap.containsKey("general")) {
-                        Object generalObj = configMap.get("general");
-                        if (generalObj instanceof Map) {
-                            Map<?, ?> generalMap = (Map<?, ?>) generalObj;
-                            mergeHighEnchantments = getBoolean(generalMap, "mergeHighEnchantments", true);
-                            lootHighEnchantments = getBoolean(generalMap, "lootHighEnchantments", true);
-                            armorProtectionCompatibility = getBoolean(generalMap, "armorProtectionCompatibility", true);
-                            weaponEnchantmentCompatibility = getBoolean(generalMap, "weaponEnchantmentCompatibility", true);
-                            axeEnchantmentExpansion = getBoolean(generalMap, "axeEnchantmentExpansion", false);
-                            bowLootingEnchantment = getBoolean(generalMap, "bowLootingEnchantment", true);
-                            tridentEnchantmentExpansion = getBoolean(generalMap, "tridentEnchantmentExpansion", true);
-                            infinityWithoutArrow = getBoolean(generalMap, "infinityWithoutArrow", true);
+        // 只有在服务端或未同步配置的情况下才加载
+        if (isServer || !isConfigSynced) {
+            try {
+                ensureConfigDir();
+            } catch (IOException e) {
+            }
+            
+            if (Files.exists(CONFIG_FILE)) {
+                try (BufferedReader reader = Files.newBufferedReader(CONFIG_FILE)) {
+                    // 解析JSON为Map
+                    Map<String, Object> configMap = GSON.fromJson(reader, new TypeToken<Map<String, Object>>(){}.getType());
+                    if (configMap != null) {
+                        // 加载常规配置
+                        if (configMap.containsKey("general")) {
+                            Object generalObj = configMap.get("general");
+                            if (generalObj instanceof Map) {
+                                Map<?, ?> generalMap = (Map<?, ?>) generalObj;
+                                mergeHighEnchantments = getBoolean(generalMap, "mergeHighEnchantments", true);
+                                lootHighEnchantments = getBoolean(generalMap, "lootHighEnchantments", true);
+                                creatureHighEnchantmentArmor = getBoolean(generalMap, "creatureHighEnchantmentArmor", false);
+                                armorProtectionCompatibility = getBoolean(generalMap, "armorProtectionCompatibility", true);
+                                weaponEnchantmentCompatibility = getBoolean(generalMap, "weaponEnchantmentCompatibility", true);
+                                axeEnchantmentExpansion = getBoolean(generalMap, "axeEnchantmentExpansion", true);
+                                bowLootingEnchantment = getBoolean(generalMap, "bowLootingEnchantment", true);
+                                tridentEnchantmentExpansion = getBoolean(generalMap, "tridentEnchantmentExpansion", true);
+                                infinityWithoutArrow = getBoolean(generalMap, "infinityWithoutArrow", true);
+                            }
                         }
-                    }
-                    
-                    // 加载附魔等级配置
-                    if (configMap.containsKey("enchantments")) {
-                        Object enchantmentsObj = configMap.get("enchantments");
-                        if (enchantmentsObj instanceof Map) {
-                            Map<?, ?> enchantmentsMap = (Map<?, ?>) enchantmentsObj;
+                        
+                        // 加载附魔等级配置
+                        if (configMap.containsKey("enchantments")) {
+                            Object enchantmentsObj = configMap.get("enchantments");
+                            if (enchantmentsObj instanceof Map) {
+                                Map<?, ?> enchantmentsMap = (Map<?, ?>) enchantmentsObj;
+                                MAX_LEVELS.clear();
+                                for (Map.Entry<?, ?> entry : enchantmentsMap.entrySet()) {
+                                    if (entry.getKey() instanceof String && entry.getValue() instanceof Number) {
+                                        MAX_LEVELS.put((String) entry.getKey(), ((Number) entry.getValue()).intValue());
+                                    }
+                                }
+                            }
+                        } else {
+                            // 旧格式兼容：直接加载整个Map作为附魔等级
                             MAX_LEVELS.clear();
-                            for (Map.Entry<?, ?> entry : enchantmentsMap.entrySet()) {
+                            for (Map.Entry<?, ?> entry : configMap.entrySet()) {
                                 if (entry.getKey() instanceof String && entry.getValue() instanceof Number) {
                                     MAX_LEVELS.put((String) entry.getKey(), ((Number) entry.getValue()).intValue());
                                 }
                             }
                         }
                     } else {
-                        // 旧格式兼容：直接加载整个Map作为附魔等级
-                        MAX_LEVELS.clear();
-                        for (Map.Entry<?, ?> entry : configMap.entrySet()) {
-                            if (entry.getKey() instanceof String && entry.getValue() instanceof Number) {
-                                MAX_LEVELS.put((String) entry.getKey(), ((Number) entry.getValue()).intValue());
-                            }
-                        }
+                        initializeDefaults();
+                        save();
                     }
-                } else {
+                } catch (IOException e) {
                     initializeDefaults();
                     save();
                 }
-            } catch (IOException e) {
+            } else {
                 initializeDefaults();
                 save();
             }
-        } else {
-            initializeDefaults();
-            save();
+            
+            // 如果附魔等级为空，用默认值初始化
+            if (MAX_LEVELS.isEmpty()) {
+                initializeDefaults();
+                save();
+            }
+            
+            loaded = true;
         }
-        
-        // 如果附魔等级为空，用默认值初始化
-        if (MAX_LEVELS.isEmpty()) {
-            initializeDefaults();
-            save();
-        }
-        
-        loaded = true;
     }
     
     private static boolean getBoolean(Map<?, ?> map, String key, boolean defaultValue) {
@@ -184,7 +207,7 @@ public class EnchantmentConfig {
             {"minecraft:impaling", 8},             // 穿刺
             {"minecraft:luck_of_the_sea", 5},      // 海之眷顾
             {"minecraft:riptide", 3},              // 激流
-            {"minecraft:mending", 3},              // 经验修补
+
             {"minecraft:respiration", 5},          // 水下呼吸
             {"minecraft:protection", 6},           // 保护
             {"minecraft:piercing", 4},             // 穿透
@@ -227,7 +250,7 @@ public class EnchantmentConfig {
             {"minecraft:riptide", 5},
             {"minecraft:multishot", 5},
             {"minecraft:piercing", 4},
-            {"minecraft:mending", 3},
+
             {"minecraft:density", 5},
             {"minecraft:breach", 5},
             {"minecraft:wind_burst", 3},
@@ -349,6 +372,55 @@ public class EnchantmentConfig {
         loadIfNeeded();
         infinityWithoutArrow = value;
     }
+
+    public static boolean isCreatureHighEnchantmentArmor() {
+        loadIfNeeded();
+        return creatureHighEnchantmentArmor;
+    }
+
+    public static void setCreatureHighEnchantmentArmor(boolean value) {
+        loadIfNeeded();
+        creatureHighEnchantmentArmor = value;
+    }
+    
+    // 同步相关方法
+    public static void setIsServer(boolean value) {
+        isServer = value;
+    }
+    
+    public static boolean isServer() {
+        return isServer;
+    }
+    
+    public static void setConfigSynced(boolean value) {
+        isConfigSynced = value;
+    }
+    
+    public static boolean isConfigSynced() {
+        return isConfigSynced;
+    }
+    
+    // 同步配置
+    public static void syncConfig(Map<String, Object> generalConfig, Map<String, Integer> enchantmentsConfig) {
+        if (generalConfig != null) {
+            mergeHighEnchantments = getBoolean(generalConfig, "mergeHighEnchantments", true);
+            lootHighEnchantments = getBoolean(generalConfig, "lootHighEnchantments", true);
+            creatureHighEnchantmentArmor = getBoolean(generalConfig, "creatureHighEnchantmentArmor", false);
+            armorProtectionCompatibility = getBoolean(generalConfig, "armorProtectionCompatibility", true);
+            weaponEnchantmentCompatibility = getBoolean(generalConfig, "weaponEnchantmentCompatibility", true);
+            axeEnchantmentExpansion = getBoolean(generalConfig, "axeEnchantmentExpansion", true);
+            bowLootingEnchantment = getBoolean(generalConfig, "bowLootingEnchantment", true);
+            tridentEnchantmentExpansion = getBoolean(generalConfig, "tridentEnchantmentExpansion", true);
+            infinityWithoutArrow = getBoolean(generalConfig, "infinityWithoutArrow", true);
+        }
+        
+        if (enchantmentsConfig != null) {
+            MAX_LEVELS.clear();
+            MAX_LEVELS.putAll(enchantmentsConfig);
+        }
+        
+        isConfigSynced = true;
+    }
     
     public static void resetToDefaults() {
         loadIfNeeded();
@@ -361,6 +433,16 @@ public class EnchantmentConfig {
         for (Map.Entry<String, Integer> entry : DEFAULT_LEVELS.entrySet()) {
             MAX_LEVELS.put(entry.getKey(), entry.getValue());
         }
+        // 重置常规配置项到默认值
+        mergeHighEnchantments = true;
+        lootHighEnchantments = true;
+        creatureHighEnchantmentArmor = false;
+        armorProtectionCompatibility = true;
+        weaponEnchantmentCompatibility = true;
+        axeEnchantmentExpansion = true;
+        bowLootingEnchantment = true;
+        tridentEnchantmentExpansion = true;
+        infinityWithoutArrow = true;
         // 保存到配置文件
         save();
     }

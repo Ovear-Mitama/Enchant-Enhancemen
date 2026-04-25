@@ -29,6 +29,7 @@ public class ConfigScreen extends Screen {
     private Tab currentTab = Tab.GENERAL;
     private ButtonWidget generalTabButton;
     private ButtonWidget customTabButton;
+    private boolean canModify = true;
     
     // 常规标签页组件状态
     private int resetButtonState = 0; // 0=重置, 1=确认?, 2=已重置!
@@ -113,6 +114,7 @@ public class ConfigScreen extends Screen {
             // 执行重置操作
             EnchantmentConfig.setMergeHighEnchantments(true);
             EnchantmentConfig.setLootHighEnchantments(true);
+            EnchantmentConfig.setCreatureHighEnchantmentArmor(false);
             EnchantmentConfig.setArmorProtectionCompatibility(true);
             EnchantmentConfig.setWeaponEnchantmentCompatibility(true);
             EnchantmentConfig.setAxeEnchantmentExpansion(false);
@@ -226,7 +228,11 @@ public class ConfigScreen extends Screen {
         int saveY = height - bottomMargin - buttonHeight;
         ButtonWidget saveButton = ButtonWidget.builder(
             Text.translatable("config.enchant_enhancement.button.save_exit").withColor(0xFFB1EAC2),
-            button -> saveChanges()
+            button -> {
+                if (canModify) {
+                    saveChanges();
+                }
+            }
         ).dimensions(saveX, saveY, buttonWidth, buttonHeight).build();
         addDrawableChild(saveButton);
         
@@ -297,31 +303,56 @@ public class ConfigScreen extends Screen {
         
         listWidget.clearEntriesPublic();
         
+        // 检查是否已同步配置（客户端）
+        boolean isConfigSynced = EnchantmentConfig.isConfigSynced();
+        // 检查是否是多人游戏（通过检查是否连接到服务器）
+        boolean isMultiplayer = net.minecraft.client.MinecraftClient.getInstance().getCurrentServerEntry() != null;
+        // 综合判断：如果已同步配置或处于多人游戏，禁止修改
+        this.canModify = !isConfigSynced && !isMultiplayer;
+        
         if (currentTab == Tab.GENERAL) {
             // 常规标签页：添加常规设置条目，支持搜索过滤
             String query = searchQuery == null ? "" : searchQuery.trim().toLowerCase();
             
             // 只有匹配搜索词或搜索词为空时才添加条目
-            if (query.isEmpty() || "合并高级附魔".toLowerCase().contains(query)) {
-                listWidget.addListEntry(new GeneralSettingEntry(
-                    Text.translatable("config.enchant_enhancement.setting.merge_high_enchantments"),
-                    EnchantmentConfig.isMergeHighEnchantments(),
-                    value -> {
-                        EnchantmentConfig.setMergeHighEnchantments(value);
-                        return getToggleText(value);
-                    },
-                    Text.translatable("config.enchant_enhancement.tooltip.merge_high_enchantments")
-                ));
-            }
-            
-            if (query.isEmpty() || "战利品生产高级附魔书".toLowerCase().contains(query)) {
+            if (query.isEmpty() || "战利品中生成高级附魔书".toLowerCase().contains(query)) {
                 listWidget.addListEntry(new GeneralSettingEntry(
                     Text.translatable("config.enchant_enhancement.setting.loot_high_enchantments"),
                     EnchantmentConfig.isLootHighEnchantments(),
                     value -> {
-                        EnchantmentConfig.setLootHighEnchantments(value);
+                        if (canModify) {
+                            EnchantmentConfig.setLootHighEnchantments(value);
+                        }
                         return getToggleText(value);
                     }
+                ));
+            }
+            
+            if (query.isEmpty() || "生物穿戴高级附魔盔甲".toLowerCase().contains(query)) {
+                listWidget.addListEntry(new GeneralSettingEntry(
+                    Text.translatable("config.enchant_enhancement.setting.creature_high_enchantment_armor"),
+                    EnchantmentConfig.isCreatureHighEnchantmentArmor(),
+                    value -> {
+                        if (canModify) {
+                            EnchantmentConfig.setCreatureHighEnchantmentArmor(value);
+                        }
+                        return getToggleText(value);
+                    },
+                    Text.translatable("config.enchant_enhancement.tooltip.creature_high_enchantment_armor")
+                ));
+            }
+            
+            if (query.isEmpty() || "合并突破附魔等级上限".toLowerCase().contains(query)) {
+                listWidget.addListEntry(new GeneralSettingEntry(
+                    Text.translatable("config.enchant_enhancement.setting.merge_high_enchantments"),
+                    EnchantmentConfig.isMergeHighEnchantments(),
+                    value -> {
+                        if (canModify) {
+                            EnchantmentConfig.setMergeHighEnchantments(value);
+                        }
+                        return getToggleText(value);
+                    },
+                    Text.translatable("config.enchant_enhancement.tooltip.merge_high_enchantments")
                 ));
             }
             
@@ -333,7 +364,9 @@ public class ConfigScreen extends Screen {
                     Text.translatable("config.enchant_enhancement.setting.armor_protection_compatibility"),
                     EnchantmentConfig.isArmorProtectionCompatibility(),
                     value -> {
-                        EnchantmentConfig.setArmorProtectionCompatibility(value);
+                        if (canModify) {
+                            EnchantmentConfig.setArmorProtectionCompatibility(value);
+                        }
                         return getToggleText(value);
                     },
                     Text.translatable("config.enchant_enhancement.tooltip.armor_protection_compatibility")
@@ -346,7 +379,9 @@ public class ConfigScreen extends Screen {
                     Text.translatable("config.enchant_enhancement.setting.weapon_enchantment_compatibility"),
                     EnchantmentConfig.isWeaponEnchantmentCompatibility(),
                     value -> {
-                        EnchantmentConfig.setWeaponEnchantmentCompatibility(value);
+                        if (canModify) {
+                            EnchantmentConfig.setWeaponEnchantmentCompatibility(value);
+                        }
                         return getToggleText(value);
                     },
                     Text.translatable("config.enchant_enhancement.tooltip.weapon_enchantment_compatibility")
@@ -359,7 +394,9 @@ public class ConfigScreen extends Screen {
                     Text.translatable("config.enchant_enhancement.setting.trident_enchantment_expansion"),
                     EnchantmentConfig.isTridentEnchantmentExpansion(),
                     value -> {
-                        EnchantmentConfig.setTridentEnchantmentExpansion(value);
+                        if (canModify) {
+                            EnchantmentConfig.setTridentEnchantmentExpansion(value);
+                        }
                         return getToggleText(value);
                     },
                     Text.translatable("config.enchant_enhancement.tooltip.trident_enchantment_expansion")
@@ -374,7 +411,9 @@ public class ConfigScreen extends Screen {
                     Text.translatable("config.enchant_enhancement.setting.axe_enchantment_expansion"),
                     EnchantmentConfig.isAxeEnchantmentExpansion(),
                     value -> {
-                        EnchantmentConfig.setAxeEnchantmentExpansion(value);
+                        if (canModify) {
+                            EnchantmentConfig.setAxeEnchantmentExpansion(value);
+                        }
                         return getToggleText(value);
                     },
                     Text.translatable("config.enchant_enhancement.tooltip.axe_enchantment_expansion")
@@ -387,7 +426,9 @@ public class ConfigScreen extends Screen {
                     Text.translatable("config.enchant_enhancement.setting.bow_enchantment_expansion"),
                     EnchantmentConfig.isBowLootingEnchantment(),
                     value -> {
-                        EnchantmentConfig.setBowLootingEnchantment(value);
+                        if (canModify) {
+                            EnchantmentConfig.setBowLootingEnchantment(value);
+                        }
                         return getToggleText(value);
                     },
                     Text.translatable("config.enchant_enhancement.tooltip.bow_enchantment_expansion")
@@ -400,14 +441,17 @@ public class ConfigScreen extends Screen {
                     Text.translatable("config.enchant_enhancement.setting.infinity_without_arrow"),
                     EnchantmentConfig.isInfinityWithoutArrow(),
                     value -> {
-                        EnchantmentConfig.setInfinityWithoutArrow(value);
+                        if (canModify) {
+                            EnchantmentConfig.setInfinityWithoutArrow(value);
+                        }
                         return getToggleText(value);
                     },
                     Text.translatable("config.enchant_enhancement.tooltip.infinity_without_arrow")
                 ));
             }
-
-            if (query.isEmpty() || "重置设置".toLowerCase().contains(query)) {
+            
+            // 只有在可以修改的情况下才显示重置按钮
+            if (canModify && (query.isEmpty() || "重置设置".toLowerCase().contains(query))) {
                 // 添加重置按钮条目
                 listWidget.addListEntry(new ResetButtonEntry());
             }
@@ -435,7 +479,7 @@ public class ConfigScreen extends Screen {
                             for (Identifier enchantmentId : ids) {
                                 Integer level = enchantmentLevels.get(enchantmentId);
                                 if (level != null) {
-                                    listWidget.addListEntry(new EnchantmentEntry(enchantmentId, level));
+                                    listWidget.addListEntry(new EnchantmentEntry(enchantmentId, level, !canModify));
                                 }
                             }
                         }
@@ -445,7 +489,7 @@ public class ConfigScreen extends Screen {
                 // 有搜索词：显示平铺的过滤结果
                 String query = searchQuery.toLowerCase();
                 for (Map.Entry<Identifier, Integer> entry : enchantmentLevels.entrySet()) {
-                    EnchantmentEntry enchantmentEntry = new EnchantmentEntry(entry.getKey(), entry.getValue());
+                    EnchantmentEntry enchantmentEntry = new EnchantmentEntry(entry.getKey(), entry.getValue(), !canModify);
                     String displayName = enchantmentEntry.getEnchantmentDisplayName().toLowerCase();
                     if (displayName.contains(query)) {
                         listWidget.addListEntry(enchantmentEntry);
@@ -455,8 +499,11 @@ public class ConfigScreen extends Screen {
             
 
             
-            // 添加恢复默认按钮条目
-            listWidget.addListEntry(new RestoreDefaultsEntry());
+            // 只有在未同步配置的情况下才显示恢复默认按钮
+            if (!isConfigSynced) {
+                // 添加恢复默认按钮条目
+                listWidget.addListEntry(new RestoreDefaultsEntry());
+            }
         }
     }
     
@@ -623,12 +670,18 @@ public class ConfigScreen extends Screen {
         private TextFieldWidget levelField;
         private int level;
         private float hoverProgress = 0.0f;
+        private boolean isDisabled = false;
 
         private boolean initialized = false;
         
         public EnchantmentEntry(Identifier enchantmentId, int initialLevel) {
+            this(enchantmentId, initialLevel, false);
+        }
+        
+        public EnchantmentEntry(Identifier enchantmentId, int initialLevel, boolean isDisabled) {
             this.enchantmentId = enchantmentId;
             this.level = initialLevel;
+            this.isDisabled = isDisabled;
 
         }
         
@@ -692,8 +745,8 @@ public class ConfigScreen extends Screen {
                 levelField.setUneditableColor(0xFFFFFF);
                 levelField.setMaxLength(3); // 最多3位数（如255）
 
-                levelField.setEditable(true);
-                levelField.setFocusUnlocked(true);
+                levelField.setEditable(!isDisabled);
+                levelField.setFocusUnlocked(!isDisabled);
                 levelField.setFocused(false);
                 
                 // 将输入框添加到屏幕的可交互组件中
@@ -713,7 +766,7 @@ public class ConfigScreen extends Screen {
         
         @Override
         public boolean mouseClicked(double mouseX, double mouseY, int button) {
-            if (levelField != null && levelField.mouseClicked(mouseX, mouseY, button)) {
+            if (!isDisabled && levelField != null && levelField.mouseClicked(mouseX, mouseY, button)) {
                 // 移除所有其他输入框的焦点
                 for (EnchantmentEntry entry : ConfigScreen.this.allEntries) {
                     if (entry != this && entry.levelField != null) {
@@ -928,9 +981,11 @@ public class ConfigScreen extends Screen {
 
         private SliderWidget sliderWidget;
         private float hoverProgress = 0.0f;
+        private boolean canModify;
         
-        public ExperienceSliderEntry(int initialValue) {
+        public ExperienceSliderEntry(int initialValue, boolean canModify) {
             this.value = Math.max(20, Math.min(50, initialValue));
+            this.canModify = canModify;
         }
         
         @Override
@@ -980,14 +1035,20 @@ public class ConfigScreen extends Screen {
                     
                     @Override
                     protected void applyValue() {
-                        // 确保value在0-1范围内
-                        double normalizedValue = Math.max(0.0, Math.min(1.0, this.value));
-                        int newValue = 20 + (int)(normalizedValue * 30.0);
-                        newValue = Math.max(20, Math.min(50, newValue));
-                        value = newValue;
+                        if (canModify) {
+                            // 确保value在0-1范围内
+                            double normalizedValue = Math.max(0.0, Math.min(1.0, this.value));
+                            int newValue = 20 + (int)(normalizedValue * 30.0);
+                            newValue = Math.max(20, Math.min(50, newValue));
+                            value = newValue;
 
-                        // 更新滑块内部值以保持同步
-                        this.value = Math.max(0.0, Math.min(1.0, (newValue - 20.0) / 30.0));
+                            // 更新滑块内部值以保持同步
+                            this.value = Math.max(0.0, Math.min(1.0, (newValue - 20.0) / 30.0));
+                        } else {
+                            // 如果不能修改，重置滑块值
+                            this.value = (value - 20.0) / 30.0;
+                            updateMessage();
+                        }
                     }
                     
 
@@ -1047,9 +1108,11 @@ public class ConfigScreen extends Screen {
         private float value;
         private SliderWidget sliderWidget;
         private float hoverProgress = 0.0f;
+        private boolean canModify;
         
-        public ExperienceMultiplierSliderEntry(float initialValue) {
+        public ExperienceMultiplierSliderEntry(float initialValue, boolean canModify) {
             this.value = Math.max(0.8F, Math.min(1.0F, initialValue));
+            this.canModify = canModify;
         }
         
         @Override
@@ -1095,14 +1158,20 @@ public class ConfigScreen extends Screen {
                     
                     @Override
                     protected void applyValue() {
-                        // 确保value在0-1范围内
-                        double normalizedValue = Math.max(0.0, Math.min(1.0, this.value));
-                        float newValue = 0.8F + (float)(normalizedValue * 0.2);
-                        newValue = Math.max(0.8F, Math.min(1.0F, newValue));
-                        value = newValue;
+                        if (canModify) {
+                            // 确保value在0-1范围内
+                            double normalizedValue = Math.max(0.0, Math.min(1.0, this.value));
+                            float newValue = 0.8F + (float)(normalizedValue * 0.2);
+                            newValue = Math.max(0.8F, Math.min(1.0F, newValue));
+                            value = newValue;
 
-                        // 更新滑块内部值以保持同步
-                        this.value = Math.max(0.0, Math.min(1.0, (newValue - 0.8) / 0.2));
+                            // 更新滑块内部值以保持同步
+                            this.value = Math.max(0.0, Math.min(1.0, (newValue - 0.8) / 0.2));
+                        } else {
+                            // 如果不能修改，重置滑块值
+                            this.value = (value - 0.8) / 0.2;
+                            updateMessage();
+                        }
                     }
                     
 
@@ -1481,7 +1550,6 @@ public class ConfigScreen extends Screen {
             this.customScrollbarBottom = 0;
         }
         
-        @SuppressWarnings("unchecked")
         public void addListEntry(AlwaysSelectedEntryListWidget.Entry<?> entry) {
             super.addEntry(entry);
         }
