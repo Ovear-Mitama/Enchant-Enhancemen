@@ -227,6 +227,7 @@ public class EnchantmentConfig {
             {"minecraft:blast_protection", 6},
             {"minecraft:projectile_protection", 6},
             {"minecraft:respiration", 5},
+            {"minecraft:depth_strider", 5},         // 深海探索者
             {"minecraft:aqua_affinity", 5},
             {"minecraft:thorns", 3},
             {"minecraft:soul_speed", 3},
@@ -250,19 +251,11 @@ public class EnchantmentConfig {
             {"minecraft:riptide", 5},
             {"minecraft:multishot", 5},
             {"minecraft:piercing", 4},
-
-            {"minecraft:density", 5},
-            {"minecraft:breach", 5},
-            {"minecraft:wind_burst", 3},
         };
 
-        // 精准采集 (silk_touch)
-        // 火矢 (flame)
-        // 引雷 (channeling)
-        // 绑定诅咒 (binding_curse)
-        // 深海探索者 (depth_strider)
-        // 无限 (infinity)
-        // 消失诅咒 (vanishing_curse)
+        // 以下为通常不需要修改等级的附魔（maxLevel=1），如需修改取消注释
+        // {"minecraft:depth_strider", 3},
+        // {"minecraft:quick_charge", 5},
         
         for (Object[] entry : enchantmentDefaults) {
             String idStr = (String) entry[0];
@@ -280,7 +273,7 @@ public class EnchantmentConfig {
         Map<Identifier, Integer> result = new HashMap<>();
         for (Map.Entry<String, Integer> entry : MAX_LEVELS.entrySet()) {
             try {
-                Identifier id = Identifier.of(entry.getKey());
+                Identifier id = new Identifier(entry.getKey());
                 result.put(id, entry.getValue());
             } catch (Exception e) {
             }

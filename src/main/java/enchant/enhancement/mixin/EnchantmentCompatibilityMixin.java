@@ -3,7 +3,6 @@ package enchant.enhancement.mixin;
 import com.llamalad7.mixinextras.injector.ModifyReturnValue;
 import enchant.enhancement.config.EnchantmentConfig;
 import net.minecraft.enchantment.Enchantment;
-import net.minecraft.registry.entry.RegistryEntry;
 import net.minecraft.util.Identifier;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.AxeItem;
@@ -17,10 +16,10 @@ import enchant.enhancement.util.EnchantmentRegistry;
 @Mixin(Enchantment.class)
 public class EnchantmentCompatibilityMixin {
     
-    @ModifyReturnValue(method = "canBeCombined", at = @At("RETURN"))
-    private static boolean hookCanBeCombined(boolean original, RegistryEntry<Enchantment> first, RegistryEntry<Enchantment> second) {
-        Enchantment selfEnchantment = first.value();
-        Enchantment otherEnchantment = second.value();
+    @ModifyReturnValue(method = "canCombine", at = @At("RETURN"))
+    private boolean hookCanBeCombined(boolean original, Enchantment other) {
+        Enchantment selfEnchantment = (Enchantment)(Object)this;
+        Enchantment otherEnchantment = other;
         
         // 获取两个附魔的ID
         Identifier selfId = EnchantmentRegistry.getId(selfEnchantment);

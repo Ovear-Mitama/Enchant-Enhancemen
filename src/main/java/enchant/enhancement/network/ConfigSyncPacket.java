@@ -1,7 +1,6 @@
 package enchant.enhancement.network;
 
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.network.codec.PacketCodec;
 import net.minecraft.network.PacketByteBuf;
 import enchant.enhancement.config.EnchantmentConfig;
 
@@ -9,10 +8,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class ConfigSyncPacket {
-    public static final PacketCodec<PacketByteBuf, ConfigSyncPacket> CODEC = PacketCodec.of(
-        ConfigSyncPacket::write,
-        ConfigSyncPacket::read
-    );
     
     private final Map<String, Object> generalConfig;
     private final Map<String, Integer> enchantmentsConfig;

@@ -29,6 +29,8 @@ public class ConfigScreen extends Screen {
     private Tab currentTab = Tab.GENERAL;
     private ButtonWidget generalTabButton;
     private ButtonWidget customTabButton;
+    private int tabButtonY;
+    private int tabStartX;
     private boolean canModify = true;
     
     // 常规标签页组件状态
@@ -65,7 +67,7 @@ public class ConfigScreen extends Screen {
     
     private void switchTab(Tab tab) {
         currentTab = tab;
-        updateTabButtonColors();
+        // 自定义绘制按钮, 切换时不需要更新
         // 更新固定搜索框占位符
         if (searchFieldFixed != null) {
             if (currentTab == Tab.GENERAL) {
@@ -84,20 +86,11 @@ public class ConfigScreen extends Screen {
         }
     }
     
-    private void updateTabButtonColors() {
-        if (generalTabButton != null) {
-            int color = currentTab == Tab.GENERAL ? 0xFFB1EAC2 : 0xFFAAAAAA;
-            generalTabButton.setMessage(Text.translatable("config.enchant_enhancement.tab.general").withColor(color));
-        }
-        if (customTabButton != null) {
-            int color = currentTab == Tab.CUSTOM ? 0xFFB1EAC2 : 0xFFAAAAAA;
-            customTabButton.setMessage(Text.translatable("config.enchant_enhancement.tab.enchantments").withColor(color));
-        }
-    }
+    // 标签按钮使用自定义绘制, 不再需要ButtonWidget
     
     private Text getToggleText(boolean enabled) {
         String key = enabled ? "config.enchant_enhancement.toggle.on" : "config.enchant_enhancement.toggle.off";
-        return Text.translatable(key).withColor(enabled ? 0xFFB1EAC2 : 0xFFF9867D);
+        return Text.translatable(key).styled(style -> style.withColor(enabled ? 0xFFB1EAC2 : 0xFFF9867D));
     }
     
     private void handleResetButton() {
@@ -152,33 +145,25 @@ public class ConfigScreen extends Screen {
     protected void init() {
         super.init();
         
-        // 创建固定的选项卡按钮（横着放在黑色背景的顶部靠左位置）
-        int generalTabButtonWidth = 40; // 常规按钮宽度，刚好比文字长一点
-        int customTabButtonWidth = 70; // 附魔等级按钮宽度，刚好比文字长一点
-        int tabButtonHeight = 20;
-        int tabButtonY = 30; // 标题下方
-        int tabButtonSpacing = 5;
-        int tabStartX = 10; // 靠左位置
-        
+        // 创建选项卡按钮（原版 ButtonWidget 用空文字，颜色在render里覆盖）
+        tabButtonY = 30;
+        tabStartX = 10;
+        int genTextW = textRenderer.getWidth(Text.translatable("config.enchant_enhancement.tab.general"));
+        int custTextW = textRenderer.getWidth(Text.translatable("config.enchant_enhancement.tab.enchantments"));
         generalTabButton = ButtonWidget.builder(
-            Text.translatable("config.enchant_enhancement.tab.general"),
+            Text.empty(),
             button -> switchTab(Tab.GENERAL)
-        ).dimensions(tabStartX, tabButtonY, generalTabButtonWidth, tabButtonHeight).build();
-        
+        ).dimensions(tabStartX, tabButtonY, genTextW + 12, 20).build();
         customTabButton = ButtonWidget.builder(
-            Text.translatable("config.enchant_enhancement.tab.enchantments"),
+            Text.empty(),
             button -> switchTab(Tab.CUSTOM)
-        ).dimensions(tabStartX + generalTabButtonWidth + tabButtonSpacing, tabButtonY, customTabButtonWidth, tabButtonHeight).build();
-        
+        ).dimensions(tabStartX + genTextW + 16, tabButtonY, custTextW + 12, 20).build();
         addDrawableChild(generalTabButton);
         addDrawableChild(customTabButton);
         
-        // 更新按钮颜色以反映当前选中的标签页
-        updateTabButtonColors();
-        
         // 列表位置和大小 - 从选项卡按钮下方开始，到底部按钮上方结束
-        listTop = tabButtonY + tabButtonHeight + 5; // 选项卡按钮下方留5像素间距，增加列表高度
-        int listBottom = height - 40; // 为底部按钮留出空间，增加列表高度
+        listTop = tabButtonY + 20 + 5; // 选项卡按钮下方留5像素间距
+        int listBottom = height - 35; // 在取消/保存按钮上方结束
         
         // 创建固定的搜索框（位于列表顶部，不随列表滚动）
         int searchBoxHeight = 20;
@@ -186,18 +171,15 @@ public class ConfigScreen extends Screen {
         int searchBoxWidth = width - 20;
         int searchBoxLeft = 10;
         
-        searchFieldFixed = new TextFieldWidget(textRenderer, searchBoxLeft + 4, searchBoxTop + 12, searchBoxWidth, searchBoxHeight, Text.literal("搜索")); // 向右4像素，向下12像素补偿文本偏移
-        // 根据当前标签页设置占位符
-        if (currentTab == Tab.GENERAL) {
-            searchFieldFixed.setPlaceholder(Text.translatable("config.enchant_enhancement.search.placeholder_settings"));
-        } else {
-            searchFieldFixed.setPlaceholder(Text.translatable("config.enchant_enhancement.search.placeholder_enchantments"));
-        }
+        searchFieldFixed = new TextFieldWidget(textRenderer, searchBoxLeft, searchBoxTop, searchBoxWidth, searchBoxHeight, Text.literal("搜索"));
+        searchFieldFixed.setPlaceholder(currentTab == Tab.GENERAL 
+            ? Text.translatable("config.enchant_enhancement.search.placeholder_settings")
+            : Text.translatable("config.enchant_enhancement.search.placeholder_enchantments"));
         searchFieldFixed.setChangedListener(text -> {
             searchQuery = text.toLowerCase();
             filterEntries();
         });
-        searchFieldFixed.setDrawsBackground(false);
+        searchFieldFixed.setDrawsBackground(true);
         searchFieldFixed.setEditable(true);
         addSelectableChild(searchFieldFixed);
         // 初始可见性：两个标签页都显示（保持布局一致）
@@ -227,7 +209,7 @@ public class ConfigScreen extends Screen {
         int saveX = width - rightMargin - buttonWidth;
         int saveY = height - bottomMargin - buttonHeight;
         ButtonWidget saveButton = ButtonWidget.builder(
-            Text.translatable("config.enchant_enhancement.button.save_exit").withColor(0xFFB1EAC2),
+            Text.translatable("config.enchant_enhancement.button.save_exit").styled(style -> style.withColor(0xFFB1EAC2)),
             button -> {
                 if (canModify) {
                     saveChanges();
@@ -240,7 +222,7 @@ public class ConfigScreen extends Screen {
         int cancelX = saveX - buttonSpacing - buttonWidth;
         int cancelY = saveY;
         ButtonWidget cancelButton = ButtonWidget.builder(
-            Text.translatable("gui.cancel").withColor(0xFFF9867D),
+            Text.translatable("gui.cancel").styled(style -> style.withColor(0xFFF9867D)),
             button -> close()
         ).dimensions(cancelX, cancelY, buttonWidth, buttonHeight).build();
         addDrawableChild(cancelButton);
@@ -276,8 +258,7 @@ public class ConfigScreen extends Screen {
                        id.contains("thorns") || id.contains("soul") || id.contains("swift")) {
                 enchantmentGroups.get("armor").add(enchantmentId);
             } else if (id.contains("sharpness") || id.contains("smite") || id.contains("bane") ||
-                       id.contains("sweeping") || id.contains("fire_aspect") || id.contains("density") ||
-                       id.contains("breach") || id.contains("wind")) {
+                       id.contains("sweeping") || id.contains("fire_aspect")) {
                 enchantmentGroups.get("weapons").add(enchantmentId);
             } else if (id.contains("power") || id.contains("flame") || id.contains("punch") ||
                        id.contains("infinity") || id.contains("piercing") || id.contains("multishot") ||
@@ -555,14 +536,43 @@ public class ConfigScreen extends Screen {
     
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        // 先调用super.render()渲染背景和所有子组件（按钮等）
+        // 主菜单：泥土背景；游戏中：完全透明
+        if (client == null || client.world == null) {
+            this.renderBackground(context);
+        }
+        
         super.render(context, mouseX, mouseY, delta);
         
-        // 渲染列表和搜索框（两个标签页使用相同的布局）
+        // 渲染列表和搜索框
         renderCustomTab(context, mouseX, mouseY, delta);
         
-        // 渲染标题在左上角
+        // 标题
         context.drawTextWithShadow(textRenderer, Text.translatable("config.enchant_enhancement.title.main"), 10, 15, 0xFFFFFF);
+        
+        // 绘制标签按钮的彩色文字和下划线（覆盖在原版ButtonWidget上）
+        drawTabButtonOverlay(context);
+    }
+    
+    private void drawTabButtonOverlay(DrawContext context) {
+        Text genText = Text.translatable("config.enchant_enhancement.tab.general");
+        Text custText = Text.translatable("config.enchant_enhancement.tab.enchantments");
+        
+        int selColor = 0xFFAFE7C0;
+        int unselColor = 0xFFAAAAAA;
+        
+        // 常规按钮
+        int genTextColor = (currentTab == Tab.GENERAL) ? selColor : unselColor;
+        int genBtnX = generalTabButton.getX();
+        int genBtnY = generalTabButton.getY();
+        int genBtnW = generalTabButton.getWidth();
+        context.drawCenteredTextWithShadow(textRenderer, genText, genBtnX + genBtnW / 2, genBtnY + 6, genTextColor);
+        
+        // 附魔等级按钮
+        int custTextColor = (currentTab == Tab.CUSTOM) ? selColor : unselColor;
+        int custBtnX = customTabButton.getX();
+        int custBtnY = customTabButton.getY();
+        int custBtnW = customTabButton.getWidth();
+        context.drawCenteredTextWithShadow(textRenderer, custText, custBtnX + custBtnW / 2, custBtnY + 6, custTextColor);
     }
     
 
@@ -585,17 +595,12 @@ public class ConfigScreen extends Screen {
     }
     
     @Override
-    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta) {
-        // 如果不在游戏内，使用原版全景图背景
-        if (client != null && client.world == null) {
-            // 调用父类的renderBackground，这会渲染原版全景图背景
-            // 不添加任何额外背景层，避免模糊效果
-            super.renderBackground(context, mouseX, mouseY, delta);
-        } else {
-            // 在游戏内，使用半透明深色背景，隐藏背后的Mod Menu界面
-            // 0x22000000 = 大约13%透明度的黑色，足够暗以隐藏Mod Menu但不会太暗
-            context.fillGradient(0, 0, width, height, 0x22000000, 0x22000000);
+    public void renderBackground(DrawContext context) {
+        if (client == null || client.world == null) {
+            // 主菜单：泥土/全景背景
+            super.renderBackground(context);
         }
+        // 游戏中：什么都不画，保持透明让游戏世界透过来
     }
     
     @Override
@@ -626,11 +631,11 @@ public class ConfigScreen extends Screen {
     }
     
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
-        if (listWidget != null && listWidget.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount)) {
+    public boolean mouseScrolled(double mouseX, double mouseY, double amount) {
+        if (listWidget != null && listWidget.mouseScrolled(mouseX, mouseY, amount)) {
             return true;
         }
-        return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
+        return super.mouseScrolled(mouseX, mouseY, amount);
     }
     
     @Override
@@ -850,7 +855,7 @@ public class ConfigScreen extends Screen {
                 
                 // 设置按钮颜色：激活状态为绿色，非激活状态为灰色
                 int color = isActive ? 0xFFB1EAC2 : 0xFFAAAAAA;
-                buttonWidget.setMessage(buttonText.copy().withColor(color));
+                buttonWidget.setMessage(buttonText.copy().styled(style -> style.withColor(color)));
             }
             
             // 更新按钮位置
@@ -1030,7 +1035,7 @@ public class ConfigScreen extends Screen {
                         double normalizedValue = Math.max(0.0, Math.min(1.0, this.value));
                         int currentValue = 20 + (int)(normalizedValue * 30.0);
                         currentValue = Math.max(20, Math.min(50, currentValue));
-                        setMessage(Text.literal(String.valueOf(currentValue)).withColor(0xFFFFFF));
+                        setMessage(Text.literal(String.valueOf(currentValue)).styled(style -> style.withColor(0xFFFFFF)));
                     }
                     
                     @Override
@@ -1061,7 +1066,7 @@ public class ConfigScreen extends Screen {
 
                 };
                 // 初始化消息
-                sliderWidget.setMessage(Text.literal(String.valueOf(value)).withColor(0xFFFFFF));
+                sliderWidget.setMessage(Text.literal(String.valueOf(value)).styled(style -> style.withColor(0xFFFFFF)));
             }
             
             // 更新滑块位置和值（尺寸统一为宽80高20）
@@ -1153,7 +1158,7 @@ public class ConfigScreen extends Screen {
                         double normalizedValue = Math.max(0.0, Math.min(1.0, this.value));
                         float currentValue = 0.8F + (float)(normalizedValue * 0.2);
                         currentValue = Math.max(0.8F, Math.min(1.0F, currentValue));
-                        setMessage(Text.literal(String.format("%.2f", currentValue)).withColor(0xFFFFFF));
+                        setMessage(Text.literal(String.format("%.2f", currentValue)).styled(style -> style.withColor(0xFFFFFF)));
                     }
                     
                     @Override
@@ -1181,7 +1186,7 @@ public class ConfigScreen extends Screen {
 
                 };
                 // 初始化消息
-                sliderWidget.setMessage(Text.literal(String.format("%.2f", value)).withColor(0xFFFFFF));
+                sliderWidget.setMessage(Text.literal(String.format("%.2f", value)).styled(style -> style.withColor(0xFFFFFF)));
             }
             
             // 更新滑块位置和值（尺寸统一为宽80高20）
@@ -1245,7 +1250,7 @@ public class ConfigScreen extends Screen {
                 int buttonY = y + (entryHeight - buttonHeight) / 2; // 垂直居中，与上方按钮统一
                 
                 resetButton = ButtonWidget.builder(
-                    Text.translatable("config.enchant_enhancement.button.reset").withColor(0xFFF9867D), // 初始文本为"重置"
+                    Text.translatable("config.enchant_enhancement.button.reset").styled(style -> style.withColor(0xFFF9867D)), // 初始文本为"重置"
                     button -> handleResetButton()
                 ).dimensions(buttonX, buttonY, buttonWidth, buttonHeight).build();
             }
@@ -1259,11 +1264,11 @@ public class ConfigScreen extends Screen {
             
             // 根据状态更新按钮文本
             if (resetButtonState == 1) {
-                resetButton.setMessage(Text.translatable("config.enchant_enhancement.button.reset_confirm").withColor(0xFFF9867D));
+                resetButton.setMessage(Text.translatable("config.enchant_enhancement.button.reset_confirm").styled(style -> style.withColor(0xFFF9867D)));
             } else if (resetButtonState == 2) {
-                resetButton.setMessage(Text.translatable("config.enchant_enhancement.button.reset_done").withColor(0xFFB1EAC2));
+                resetButton.setMessage(Text.translatable("config.enchant_enhancement.button.reset_done").styled(style -> style.withColor(0xFFB1EAC2)));
             } else {
-                resetButton.setMessage(Text.translatable("config.enchant_enhancement.button.reset").withColor(0xFFF9867D)); // 正常状态显示"重置"
+                resetButton.setMessage(Text.translatable("config.enchant_enhancement.button.reset").styled(style -> style.withColor(0xFFF9867D))); // 正常状态显示"重置"
             }
             
             resetButton.render(context, mouseX, mouseY, tickDelta);
@@ -1400,11 +1405,11 @@ public class ConfigScreen extends Screen {
         
         private Text getButtonText() {
             if (ConfigScreen.this.restoreDefaultsButtonState == 1) {
-                return Text.translatable("config.enchant_enhancement.button.restore_confirm").withColor(0xFFF9867D);
+                return Text.translatable("config.enchant_enhancement.button.restore_confirm").styled(style -> style.withColor(0xFFF9867D));
             } else if (ConfigScreen.this.restoreDefaultsButtonState == 2) {
-                return Text.translatable("config.enchant_enhancement.button.restore_done").withColor(0xFFB1EAC2); // 绿色
+                return Text.translatable("config.enchant_enhancement.button.restore_done").styled(style -> style.withColor(0xFFB1EAC2)); // 绿色
             } else {
-                return Text.translatable("config.enchant_enhancement.button.restore").withColor(0xFFF9867D);
+                return Text.translatable("config.enchant_enhancement.button.restore").styled(style -> style.withColor(0xFFF9867D));
             }
         }
         
@@ -1541,7 +1546,7 @@ public class ConfigScreen extends Screen {
         private int customScrollbarLeft, customScrollbarRight, customScrollbarTop, customScrollbarBottom; // 保存当前滚动条位置用于鼠标检测
         
         public EnchantmentListWidget(net.minecraft.client.MinecraftClient client, int width, int height, int top, int itemHeight) {
-            super(client, width, height, top, itemHeight);
+            super(client, width, height, top, top + height, itemHeight);
             this.itemHeight = itemHeight;
             // 初始化滚动条位置
             this.customScrollbarLeft = 0;
@@ -1565,14 +1570,14 @@ public class ConfigScreen extends Screen {
         }
         
         @Override
-        protected int getScrollbarX() {
-            return getX() + getWidth() + 100; // 将滚动条移出屏幕外，隐藏原版滚动条
+        protected int getScrollbarPositionX() {
+            return left + width + 100; // 将原版滚动条移出屏幕外
         }
         
         @Override
-        public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
+        public boolean mouseScrolled(double mouseX, double mouseY, double amount) {
             // 应用滚动因子，提高滚动灵敏度
-            return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount * SCROLL_FACTOR);
+            return super.mouseScrolled(mouseX, mouseY, amount * SCROLL_FACTOR);
         }
 
         @Override
@@ -1592,7 +1597,7 @@ public class ConfigScreen extends Screen {
         public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
             if (customScrollbarDragging) {
                 int deltaYInt = (int)mouseY - customScrollbarDragStartY;
-                int visibleHeight = getHeight();
+                int visibleHeight = height;
                 double maxScroll = getMaxScroll();
                 double newScroll = customScrollbarDragStartScroll + (deltaYInt * maxScroll / (visibleHeight - (customScrollbarBottom - customScrollbarTop)));
                 setScrollAmount(newScroll);
@@ -1610,7 +1615,7 @@ public class ConfigScreen extends Screen {
             return super.mouseReleased(mouseX, mouseY, button);
         }
 
-        protected void renderScrollBar(DrawContext context, int mouseX, int mouseY, float delta) {
+        protected void renderScrollbar(DrawContext context, int mouseX, int mouseY, float delta) {
             // 空实现，禁用原版滚动条渲染
         }
         
@@ -1619,25 +1624,27 @@ public class ConfigScreen extends Screen {
         }
         
         @Override
-        public void renderWidget(DrawContext context, int mouseX, int mouseY, float delta) {
-            // 先调用父类渲染列表内容（包括原版滚动条）
-            super.renderWidget(context, mouseX, mouseY, delta);
-            
-
+        public void render(DrawContext context, int mouseX, int mouseY, float delta) {
+            // 不调用super.render()以避免EntryListWidget硬编码的不透明背景填充
+            // 但需要手动设置裁剪确保列表不超出边界
+            context.enableScissor(0, top, width, bottom);
+            this.renderList(context, mouseX, mouseY, delta);
+            this.renderDecorations(context, mouseX, mouseY);
+            context.disableScissor();
             
             // 自定义滚动条渲染：白色半透明，靠右，宽度增加
             if (getMaxScroll() > 0) {
                 int customScrollbarWidth = 6; // 增加宽度
-                int customScrollbarRight = getX() + getWidth() - 2; // 最右侧，留2像素边距
+                int customScrollbarRight = left + width - 2; // 最右侧，留2像素边距
                 int customScrollbarLeft = customScrollbarRight - customScrollbarWidth;
                 
                 // 计算滚动条高度和位置
                 int contentHeight = getEntryCount() * this.itemHeight; // 使用实际的项目高度
-                int visibleHeight = getHeight();
+                int visibleHeight = height;
                 int scrollbarHeight = Math.max(10, (int)((float)visibleHeight * visibleHeight / contentHeight));
                 // 限制滚动条最大高度不超过可见区域的1/3
                 scrollbarHeight = Math.min(visibleHeight / 3, scrollbarHeight);
-                int customScrollbarTop = getY() + (int)((float)getScrollAmount() * (visibleHeight - scrollbarHeight) / getMaxScroll());
+                int customScrollbarTop = top + (int)((float)getScrollAmount() * (visibleHeight - scrollbarHeight) / getMaxScroll());
                 int customScrollbarBottom = customScrollbarTop + scrollbarHeight;
                 
                 // 保存滚动条位置用于鼠标检测

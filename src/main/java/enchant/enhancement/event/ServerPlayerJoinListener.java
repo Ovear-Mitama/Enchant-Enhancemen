@@ -1,7 +1,9 @@
 package enchant.enhancement.event;
 
+import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
+import net.minecraft.network.PacketByteBuf;
 import net.minecraft.server.network.ServerPlayerEntity;
 import enchant.enhancement.config.EnchantmentConfig;
 import enchant.enhancement.network.ConfigSyncPacket;
@@ -41,7 +43,8 @@ public class ServerPlayerJoinListener {
 
         // 创建并发送数据包
         ConfigSyncPacket packet = new ConfigSyncPacket(generalConfig, enchantmentsConfig);
-        EnchantNetwork.ConfigSyncPayload payload = new EnchantNetwork.ConfigSyncPayload(packet);
-        ServerPlayNetworking.send(player, payload);
+        PacketByteBuf buf = PacketByteBufs.create();
+        packet.write(buf);
+        ServerPlayNetworking.send(player, EnchantNetwork.CONFIG_SYNC_ID, buf);
     }
 }

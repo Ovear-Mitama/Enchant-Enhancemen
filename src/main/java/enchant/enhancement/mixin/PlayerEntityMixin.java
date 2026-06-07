@@ -7,8 +7,6 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.BowItem;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
-import net.minecraft.registry.RegistryKeys;
-import net.minecraft.registry.entry.RegistryEntry;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -23,19 +21,11 @@ public class PlayerEntityMixin {
         if (EnchantmentConfig.isInfinityWithoutArrow()) {
             // 检查武器是否为弓
             if (weapon.getItem() instanceof BowItem) {
-                // 获取无限附魔的RegistryEntry
-                PlayerEntity self = (PlayerEntity)(Object)this;
-                RegistryEntry<net.minecraft.enchantment.Enchantment> infinityEntry = self.getWorld().getRegistryManager().get(RegistryKeys.ENCHANTMENT).getEntry(Enchantments.INFINITY).orElse(null);
-                if (infinityEntry != null) {
-                    // 检查弓是否有无限附魔
-                    if (EnchantmentHelper.getLevel(infinityEntry, weapon) > 0) {
-                        // 返回一个虚拟的箭堆栈，允许射击
-                        // 注意：这里返回一个箭堆栈，但原版逻辑可能会消耗它
-                        // 我们需要确保箭不会被消耗
-                        // 返回一个虚拟的箭堆栈，数量为1
-                        cir.setReturnValue(new ItemStack(Items.ARROW, 1));
-                        cir.cancel();
-                    }
+                // 检查弓是否有无限附魔（1.20.1中Enchantments.INFINITY直接就是Enchantment对象）
+                if (EnchantmentHelper.getLevel(Enchantments.INFINITY, weapon) > 0) {
+                    // 返回一个虚拟的箭堆栈，允许射击
+                    cir.setReturnValue(new ItemStack(Items.ARROW, 1));
+                    cir.cancel();
                 }
             }
         }

@@ -9,8 +9,6 @@ import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.TridentItem;
-import net.minecraft.registry.RegistryKeys;
-import net.minecraft.registry.entry.RegistryEntry;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.world.World;
 import org.spongepowered.asm.mixin.Mixin;
@@ -55,12 +53,8 @@ public class TridentAttackMixin {
         
         ServerWorld serverWorld = (ServerWorld) world;
         
-        // 检查三叉戟是否有引雷附魔
-        RegistryEntry<net.minecraft.enchantment.Enchantment> channelingEntry = 
-            serverWorld.getRegistryManager().get(RegistryKeys.ENCHANTMENT)
-                .getEntry(Enchantments.CHANNELING).orElse(null);
-        boolean hasChanneling = channelingEntry != null && 
-            EnchantmentHelper.getLevel(channelingEntry, stack) > 0;
+        // 检查三叉戟是否有引雷附魔（1.20.1中Enchantments.CHANNELING直接就是Enchantment对象）
+        boolean hasChanneling = EnchantmentHelper.getLevel(Enchantments.CHANNELING, stack) > 0;
         
         if (!hasChanneling) {
             return;
