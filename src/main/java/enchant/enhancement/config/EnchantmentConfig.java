@@ -5,6 +5,7 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
 import net.minecraft.util.Identifier;
 import net.fabricmc.loader.api.FabricLoader;
+import enchant.enhancement.event.ServerPlayerJoinListener;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -89,8 +90,7 @@ public class EnchantmentConfig {
     
     // 向所有在线玩家同步配置
     private static void syncConfigToAllPlayers(Map<String, Object> generalConfig, Map<String, Integer> enchantmentsConfig) {
-        // 由于在静态上下文中获取服务器实例比较复杂，这里暂时注释掉
-        // 实际使用中，配置同步主要通过玩家加入事件触发
+        ServerPlayerJoinListener.syncToAllPlayers();
     }
     
     public static void load() {
@@ -395,6 +395,9 @@ public class EnchantmentConfig {
     
     // 同步配置
     public static void syncConfig(Map<String, Object> generalConfig, Map<String, Integer> enchantmentsConfig) {
+        // 主机（集成服务器）不需要接收自己的同步包
+        if (isServer) return;
+
         if (generalConfig != null) {
             mergeHighEnchantments = getBoolean(generalConfig, "mergeHighEnchantments", true);
             lootHighEnchantments = getBoolean(generalConfig, "lootHighEnchantments", true);

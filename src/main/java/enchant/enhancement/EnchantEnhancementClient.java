@@ -1,0 +1,15 @@
+package enchant.enhancement;
+
+import net.fabricmc.api.ClientModInitializer;
+import enchant.enhancement.config.EnchantmentConfig;
+import enchant.enhancement.network.EnchantNetwork;
+
+public class EnchantEnhancementClient implements ClientModInitializer {
+	@Override
+	public void onInitializeClient() {
+		// 客户端初始化
+		EnchantNetwork.registerClientPackets();
+		// 加载客户端配置（如果未同步）
+		EnchantmentConfig.load();
+	}
+}

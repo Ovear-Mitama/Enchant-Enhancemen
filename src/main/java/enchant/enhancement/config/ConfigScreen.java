@@ -32,6 +32,7 @@ public class ConfigScreen extends Screen {
     private int tabButtonY;
     private int tabStartX;
     private boolean canModify = true;
+    private boolean isReadOnly = false; // 已从服务器同步时只读（UI可交互但不生效）
     
     // 常规标签页组件状态
     private int resetButtonState = 0; // 0=重置, 1=确认?, 2=已重置!
@@ -211,9 +212,8 @@ public class ConfigScreen extends Screen {
         ButtonWidget saveButton = ButtonWidget.builder(
             Text.translatable("config.enchant_enhancement.button.save_exit").styled(style -> style.withColor(0xFFB1EAC2)),
             button -> {
-                if (canModify) {
-                    saveChanges();
-                }
+                saveChanges();
+
             }
         ).dimensions(saveX, saveY, buttonWidth, buttonHeight).build();
         addDrawableChild(saveButton);
@@ -284,12 +284,11 @@ public class ConfigScreen extends Screen {
         
         listWidget.clearEntriesPublic();
         
-        // 检查是否已同步配置（客户端）
+        // 检查是否已从服务器同步了配置
         boolean isConfigSynced = EnchantmentConfig.isConfigSynced();
-        // 检查是否是多人游戏（通过检查是否连接到服务器）
-        boolean isMultiplayer = net.minecraft.client.MinecraftClient.getInstance().getCurrentServerEntry() != null;
-        // 综合判断：如果已同步配置或处于多人游戏，禁止修改
-        this.canModify = !isConfigSynced && !isMultiplayer;
+        // UI 始终可交互，但已同步时修改不生效、不保存
+        this.canModify = true;
+        this.isReadOnly = isConfigSynced;
         
         if (currentTab == Tab.GENERAL) {
             // 常规标签页：添加常规设置条目，支持搜索过滤
@@ -301,7 +300,7 @@ public class ConfigScreen extends Screen {
                     Text.translatable("config.enchant_enhancement.setting.loot_high_enchantments"),
                     EnchantmentConfig.isLootHighEnchantments(),
                     value -> {
-                        if (canModify) {
+                        if (!isReadOnly) {
                             EnchantmentConfig.setLootHighEnchantments(value);
                         }
                         return getToggleText(value);
@@ -314,7 +313,7 @@ public class ConfigScreen extends Screen {
                     Text.translatable("config.enchant_enhancement.setting.creature_high_enchantment_armor"),
                     EnchantmentConfig.isCreatureHighEnchantmentArmor(),
                     value -> {
-                        if (canModify) {
+                        if (!isReadOnly) {
                             EnchantmentConfig.setCreatureHighEnchantmentArmor(value);
                         }
                         return getToggleText(value);
@@ -328,7 +327,7 @@ public class ConfigScreen extends Screen {
                     Text.translatable("config.enchant_enhancement.setting.merge_high_enchantments"),
                     EnchantmentConfig.isMergeHighEnchantments(),
                     value -> {
-                        if (canModify) {
+                        if (!isReadOnly) {
                             EnchantmentConfig.setMergeHighEnchantments(value);
                         }
                         return getToggleText(value);
@@ -345,7 +344,7 @@ public class ConfigScreen extends Screen {
                     Text.translatable("config.enchant_enhancement.setting.armor_protection_compatibility"),
                     EnchantmentConfig.isArmorProtectionCompatibility(),
                     value -> {
-                        if (canModify) {
+                        if (!isReadOnly) {
                             EnchantmentConfig.setArmorProtectionCompatibility(value);
                         }
                         return getToggleText(value);
@@ -360,7 +359,7 @@ public class ConfigScreen extends Screen {
                     Text.translatable("config.enchant_enhancement.setting.weapon_enchantment_compatibility"),
                     EnchantmentConfig.isWeaponEnchantmentCompatibility(),
                     value -> {
-                        if (canModify) {
+                        if (!isReadOnly) {
                             EnchantmentConfig.setWeaponEnchantmentCompatibility(value);
                         }
                         return getToggleText(value);
@@ -375,7 +374,7 @@ public class ConfigScreen extends Screen {
                     Text.translatable("config.enchant_enhancement.setting.trident_enchantment_expansion"),
                     EnchantmentConfig.isTridentEnchantmentExpansion(),
                     value -> {
-                        if (canModify) {
+                        if (!isReadOnly) {
                             EnchantmentConfig.setTridentEnchantmentExpansion(value);
                         }
                         return getToggleText(value);
@@ -392,7 +391,7 @@ public class ConfigScreen extends Screen {
                     Text.translatable("config.enchant_enhancement.setting.axe_enchantment_expansion"),
                     EnchantmentConfig.isAxeEnchantmentExpansion(),
                     value -> {
-                        if (canModify) {
+                        if (!isReadOnly) {
                             EnchantmentConfig.setAxeEnchantmentExpansion(value);
                         }
                         return getToggleText(value);
@@ -407,7 +406,7 @@ public class ConfigScreen extends Screen {
                     Text.translatable("config.enchant_enhancement.setting.bow_enchantment_expansion"),
                     EnchantmentConfig.isBowLootingEnchantment(),
                     value -> {
-                        if (canModify) {
+                        if (!isReadOnly) {
                             EnchantmentConfig.setBowLootingEnchantment(value);
                         }
                         return getToggleText(value);
@@ -422,7 +421,7 @@ public class ConfigScreen extends Screen {
                     Text.translatable("config.enchant_enhancement.setting.infinity_without_arrow"),
                     EnchantmentConfig.isInfinityWithoutArrow(),
                     value -> {
-                        if (canModify) {
+                        if (!isReadOnly) {
                             EnchantmentConfig.setInfinityWithoutArrow(value);
                         }
                         return getToggleText(value);
@@ -432,7 +431,7 @@ public class ConfigScreen extends Screen {
             }
             
             // 只有在可以修改的情况下才显示重置按钮
-            if (canModify && (query.isEmpty() || "重置设置".toLowerCase().contains(query))) {
+            if (!isReadOnly && (query.isEmpty() || "重置设置".toLowerCase().contains(query))) {
                 // 添加重置按钮条目
                 listWidget.addListEntry(new ResetButtonEntry());
             }
@@ -460,7 +459,7 @@ public class ConfigScreen extends Screen {
                             for (Identifier enchantmentId : ids) {
                                 Integer level = enchantmentLevels.get(enchantmentId);
                                 if (level != null) {
-                                    listWidget.addListEntry(new EnchantmentEntry(enchantmentId, level, !canModify));
+                                    listWidget.addListEntry(new EnchantmentEntry(enchantmentId, level, false, true));
                                 }
                             }
                         }
@@ -470,7 +469,7 @@ public class ConfigScreen extends Screen {
                 // 有搜索词：显示平铺的过滤结果
                 String query = searchQuery.toLowerCase();
                 for (Map.Entry<Identifier, Integer> entry : enchantmentLevels.entrySet()) {
-                    EnchantmentEntry enchantmentEntry = new EnchantmentEntry(entry.getKey(), entry.getValue(), !canModify);
+                    EnchantmentEntry enchantmentEntry = new EnchantmentEntry(entry.getKey(), entry.getValue(), false);
                     String displayName = enchantmentEntry.getEnchantmentDisplayName().toLowerCase();
                     if (displayName.contains(query)) {
                         listWidget.addListEntry(enchantmentEntry);
@@ -501,6 +500,13 @@ public class ConfigScreen extends Screen {
 
     
     private void saveChanges() {
+        // 已从服务器同步配置时，不保存本地修改
+        if (isReadOnly) {
+            if (client != null) {
+                client.setScreen(null);
+            }
+            return;
+        }
         for (Map.Entry<Identifier, Integer> entry : enchantmentLevels.entrySet()) {
             try {
                 EnchantmentConfig.setMaxLevel(entry.getKey(), entry.getValue());
@@ -508,7 +514,10 @@ public class ConfigScreen extends Screen {
             }
         }
         EnchantmentConfig.save();
-        close();
+        // 返回游戏画面（而非父屏幕），这样重新打开创造模式物品栏会刷新附魔书等级
+        if (client != null) {
+            client.setScreen(null);
+        }
     }
     
     @Override
@@ -676,18 +685,23 @@ public class ConfigScreen extends Screen {
         private int level;
         private float hoverProgress = 0.0f;
         private boolean isDisabled = false;
+        private boolean indented = false;
 
         private boolean initialized = false;
         
         public EnchantmentEntry(Identifier enchantmentId, int initialLevel) {
-            this(enchantmentId, initialLevel, false);
+            this(enchantmentId, initialLevel, false, false);
         }
         
         public EnchantmentEntry(Identifier enchantmentId, int initialLevel, boolean isDisabled) {
+            this(enchantmentId, initialLevel, isDisabled, false);
+        }
+
+        public EnchantmentEntry(Identifier enchantmentId, int initialLevel, boolean isDisabled, boolean indented) {
             this.enchantmentId = enchantmentId;
             this.level = initialLevel;
             this.isDisabled = isDisabled;
-
+            this.indented = indented;
         }
         
         @Override
@@ -697,31 +711,36 @@ public class ConfigScreen extends Screen {
         
         @Override
         public void render(DrawContext context, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+            // 缩进量：分组内的子项向右缩进
+            int indentX = indented ? 18 : 0;
+
             // 平滑动画：淡白色背景
             float targetAlpha = hovered ? 0.1f : 0.0f;
-            float speed = 0.8f; // 增加动画速度，使过渡更平滑快速
-            hoverProgress += (targetAlpha - hoverProgress) * speed * tickDelta; // 使用tickDelta进行时间平滑插值
+            float speed = 0.8f;
+            hoverProgress += (targetAlpha - hoverProgress) * speed * tickDelta;
             hoverProgress = Math.max(0.0f, Math.min(1.0f, hoverProgress));
             
             if (hoverProgress > 0.001f) {
                 int alpha = (int)(hoverProgress * 0x66) & 0xFF;
-                int color = (alpha << 24) | 0xFFFFFF; // ARGB格式，白色带透明度
-                context.fill(x, y, x + entryWidth, y + entryHeight, color);
+                int color = (alpha << 24) | 0xFFFFFF;
+                context.fill(x + indentX, y, x + entryWidth, y + entryHeight, color);
             }
             
-            // 渲染附魔名称
+            // 渲染附魔名称（缩进项使用较暗颜色）
             String displayName = getEnchantmentDisplayName(enchantmentId);
-            // 对于30像素高度的列表项，文本垂直居中位置调整为y + 11（字体高度9像素）
-            int fontHeight = textRenderer.fontHeight; // 通常为9
-            int textY = y + Math.round((entryHeight - fontHeight) / 2f); // 使用浮点计算以正确居中
-            context.drawTextWithShadow(textRenderer, displayName, x + 10, textY, 0xFFFFFF);
+            int fontHeight = textRenderer.fontHeight;
+            int textY = y + Math.round((entryHeight - fontHeight) / 2f);
+            int nameColor = indented ? 0xFFAAAAAA : 0xFFFFFF;
+            context.drawTextWithShadow(textRenderer, displayName, x + 10 + indentX, textY, nameColor);
             
-            // 创建或更新等级输入框
+            // 创建或更新等级输入框（缩进项使用稍小的输入框）
             if (!initialized) {
-                int fieldWidth = 78; // 内部宽度78，加上边框后总宽度80
-                int fieldHeight = 18; // 内部高度18，加上边框后总高度20
-                int fieldX = x + entryWidth - 80 - 15; // 总宽度80，右侧留15像素边距，确保完全可见
-                int fieldY = y + (entryHeight - 20) / 2; // 总高度20，垂直居中
+                int fieldWidth = indented ? 64 : 78;
+                int fieldHeight = indented ? 16 : 18;
+                int totalWidth = fieldWidth + 2;
+                int totalHeight = fieldHeight + 2;
+                int fieldX = x + entryWidth - totalWidth - 15;
+                int fieldY = y + (entryHeight - totalHeight) / 2;
                 
                 levelField = new TextFieldWidget(textRenderer, fieldX, fieldY, fieldWidth, fieldHeight, Text.empty());
                 levelField.setText(String.valueOf(level));
@@ -729,43 +748,38 @@ public class ConfigScreen extends Screen {
                     try {
                         int newLevel = Integer.parseInt(text);
                         if (newLevel >= 1 && newLevel <= 255) {
-                            // 有效输入，更新等级并显示白色文本
                             level = newLevel;
-                            // 更新enchantmentLevels映射
                             ConfigScreen.this.enchantmentLevels.put(enchantmentId, newLevel);
                             levelField.setEditableColor(0xFFFFFF);
                         } else {
-                            // 超出范围，保持原值但显示红色文本提示
-                            levelField.setEditableColor(0xFF6666); // 红色提示
-                            // 不更新level值，允许用户继续编辑
+                            levelField.setEditableColor(0xFF6666);
                         }
                     } catch (NumberFormatException e) {
-                        // 非法输入（包括空字符串），保持原值但显示红色文本提示
-                        levelField.setEditableColor(0xFF6666); // 红色提示
-                        // 不更新level值，允许用户继续编辑
+                        levelField.setEditableColor(0xFF6666);
                     }
                 });
-                // 使用原版输入框样式
                 levelField.setEditableColor(0xFFFFFF);
                 levelField.setUneditableColor(0xFFFFFF);
-                levelField.setMaxLength(3); // 最多3位数（如255）
+                levelField.setMaxLength(3);
 
                 levelField.setEditable(!isDisabled);
                 levelField.setFocusUnlocked(!isDisabled);
                 levelField.setFocused(false);
                 
-                // 将输入框添加到屏幕的可交互组件中
                 ConfigScreen.this.addSelectableChild(levelField);
                 
                 initialized = true;
             }
             
-            // 更新输入框位置和大小
-            int fieldX = x + entryWidth - 80 - 15; // 总宽度80，右侧留15像素边距，确保完全可见
-            int fieldY = y + (entryHeight - 20) / 2; // 总高度20，垂直居中
+            // 更新输入框位置
+            int fieldWidth = indented ? 64 : 78;
+            int fieldHeight = indented ? 16 : 18;
+            int totalWidth = fieldWidth + 2;
+            int totalHeight = fieldHeight + 2;
+            int fieldX = x + entryWidth - totalWidth - 15;
+            int fieldY = y + (entryHeight - totalHeight) / 2;
             levelField.setPosition(fieldX, fieldY);
             
-            // 渲染输入框（使用原版样式）
             levelField.render(context, mouseX, mouseY, tickDelta);
         }
         
