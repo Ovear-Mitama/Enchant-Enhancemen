@@ -1,0 +1,1977 @@
+package damage.engine.client.gui;
+
+import damage.engine.DamageEngineClient;
+import damage.engine.DamageEngineConfig;
+import damage.engine.hud.DamageHud;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gui.Element;
+import net.minecraft.client.gui.Selectable;
+import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.client.gui.widget.ClickableWidget;
+import net.minecraft.client.gui.screen.narration.NarrationMessageBuilder;
+import net.minecraft.client.gui.widget.ElementListWidget;
+import net.minecraft.client.gui.widget.SliderWidget;
+import net.minecraft.client.gui.widget.TextFieldWidget;
+import net.minecraft.client.gui.tooltip.Tooltip;
+import net.minecraft.client.option.KeyBinding;
+import net.minecraft.client.util.InputUtil;
+import net.minecraft.text.Text;
+import net.minecraft.util.math.MathHelper;
+import org.lwjgl.glfw.GLFW;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.function.Consumer;
+
+import net.minecraft.text.MutableText;
+import net.minecraft.util.Formatting;
+import net.minecraft.client.sound.PositionedSoundInstance;
+import net.minecraft.sound.SoundEvents;
+
+public class DamageConfigScreen extends Screen {
+    private final Screen parent;
+    private final DamageEngineConfig config;
+    
+    private CategoryListWidget categoryList;
+    private ConfigOptionListWidget optionList;
+    
+    private final List<CategoryEntry> categories = new ArrayList<>();
+    private int selectedCategoryIndex = 0;
+    
+    private double lastOptionScroll = 0;
+    private double lastCategoryScroll = 0;
+    
+    private boolean expandDamageColors = false;
+    private boolean expandInfoConfig = false;
+    private boolean expandDamageDisplayConfig = false;
+    private boolean expandDamageDisplayAppearance = false;
+    private boolean expandInfoAppearance = false;
+    private boolean expandDamageIndicatorColors = false;
+    private boolean expandRatingConfig = false;
+    private boolean expandRatingPoints = false;
+    private boolean expandRatingGrades = false;
+    private boolean expandRatingAppearance = false;
+    private boolean expandDebugMode = false;
+    
+    private int resetButtonState = 0;
+    private long resetButtonActionTime = 0;
+    
+    private boolean isNavigating = false;
+    
+    private boolean isBinding = false;
+    private double selectedCategoryY = 0;
+    private double targetCategoryY = 0;
+
+
+    public DamageConfigScreen(Screen parent) {
+        super(Text.translatable("title.damage-engine.config"));
+        this.parent = parent;
+        this.config = DamageEngineConfig.getInstance();
+    }
+
+    private final List<StyledButton> footerButtons = new ArrayList<>();
+    private StyledButton[] previewBtnRef = new StyledButton[1];
+
+    private static class PlainTextButton extends ClickableWidget {
+        private final Runnable onPress;
+        private final int hoverColor;
+        private int defaultColor;
+        private boolean forceHover = false;
+
+        public PlainTextButton(int x, int y, int width, int height, Text message, Runnable onPress, int defaultColor, int hoverColor) {
+            super(x, y, width, height, message);
+            this.onPress = onPress;
+            this.defaultColor = defaultColor;
+            this.hoverColor = hoverColor;
+        }
+        
+        public void setForceHover(boolean forceHover) {
+            this.forceHover = forceHover;
+        }
+
+        @Override
+        public boolean mouseClicked(double mouseX, double mouseY, int button) {
+            if (this.active && this.visible && button == 0) {
+                 if (this.isMouseOver(mouseX, mouseY)) {
+                    this.playDownSound(MinecraftClient.getInstance().getSoundManager());
+                    this.onPress.run();
+                    return true;
+                 }
+            }
+            return false;
+        }
+
+        @Override
+        protected void renderWidget(DrawContext context, int mouseX, int mouseY, float delta) {
+            int color = (isHovered() || forceHover) ? hoverColor : defaultColor;
+            context.drawCenteredTextWithShadow(MinecraftClient.getInstance().textRenderer, getMessage(), getX() + getWidth() / 2, getY() + (getHeight() - 8) / 2, color);
+        }
+
+        @Override
+        protected void appendClickableNarrations(NarrationMessageBuilder builder) {
+            this.appendDefaultNarrations(builder);
+        }
+        @Override
+        public void playDownSound(net.minecraft.client.sound.SoundManager soundManager) {
+            if (MinecraftClient.getInstance().currentScreen instanceof DamageConfigScreen s) {
+                s.playClickSound();
+            } else {
+                super.playDownSound(soundManager);
+            }
+        }
+    }
+    
+    static class StyledButton extends ClickableWidget {
+        private final Runnable onPress;
+
+        public StyledButton(int x, int y, int width, int height, Text message, Runnable onPress) {
+            super(x, y, width, height, message);
+            this.onPress = onPress;
+        }
+        
+        @Override
+        public void playDownSound(net.minecraft.client.sound.SoundManager soundManager) {
+            if (MinecraftClient.getInstance().currentScreen instanceof DamageConfigScreen s) {
+                s.playClickSound();
+            } else if (MinecraftClient.getInstance().currentScreen instanceof HudEditorScreen s) {
+                s.playClickSound();
+            } else {
+                super.playDownSound(soundManager);
+            }
+        }
+        
+        @Override
+        public boolean mouseClicked(double mouseX, double mouseY, int button) {
+            if (this.active && this.visible && button == 0) {
+                 if (this.isMouseOver(mouseX, mouseY)) {
+                    this.playDownSound(MinecraftClient.getInstance().getSoundManager());
+                    this.onPress.run();
+                    return true;
+                 }
+            }
+            return false;
+        }
+        
+        @Override
+        protected void renderWidget(DrawContext context, int mouseX, int mouseY, float delta) {
+            context.fill(getX(), getY(), getX() + getWidth(), getY() + getHeight(), 0x20000000);
+            
+            int borderColor = isHovered() ? 0xFFFFFFFF : 0xFFA0A0A0;
+            int x = getX(); int y = getY(); int w = getWidth(); int h = getHeight();
+            context.fill(x, y, x + w, y + 1, borderColor); 
+            context.fill(x, y + h - 1, x + w, y + h, borderColor); 
+            context.fill(x, y, x + 1, y + h, borderColor); 
+            context.fill(x + w - 1, y, x + w, y + h, borderColor); 
+            
+            context.drawCenteredTextWithShadow(MinecraftClient.getInstance().textRenderer, getMessage(), getX() + getWidth() / 2, getY() + (getHeight() - 8) / 2, 0xFFFFFFFF);
+        }
+
+        @Override
+        protected void appendClickableNarrations(NarrationMessageBuilder builder) {
+            this.appendDefaultNarrations(builder);
+        }
+    }
+
+    @Override
+    protected void init() {
+        try {
+            if (optionList != null) lastOptionScroll = optionList.getScrollAmount();
+            if (categoryList != null) lastCategoryScroll = categoryList.getScrollAmount();
+
+            this.clearChildren();
+            categories.clear();
+            footerButtons.clear();
+            
+            int leftWidth = 120;
+            int footerY = this.height - 35;
+            int topY = 0; 
+            
+            int listHeight = footerY; 
+            
+            categoryList = new CategoryListWidget(this.client, leftWidth, listHeight, topY, 25);
+            categoryList.setX(0);
+            
+            categoryList.addEntryPublic(new CategorySpacerEntry(this)); 
+            
+            optionList = new ConfigOptionListWidget(this.client, this.width - leftWidth, listHeight, topY, 26);
+            optionList.setX(leftWidth);
+            
+            initCategories();
+            
+            initOptionEntries();
+            
+            if (categoryList != null) categoryList.setScrollAmount(lastCategoryScroll);
+            if (optionList != null) optionList.setScrollAmount(lastOptionScroll);
+            
+            // 初始化选中分类的Y位置
+            if (!categories.isEmpty()) {
+                // 手动计算CategoryEntry的Y位置
+                int y = categoryList.getY() + 4;
+                // 跳过CategorySpacerEntry
+                y += 25;
+                for (int i = 0; i < categories.size(); i++) {
+                    CategoryEntry cat = categories.get(i);
+                    cat.lastY = y;
+                    y += 25; // 每个分类项的高度
+                }
+                
+                CategoryEntry cat = categories.get(selectedCategoryIndex);
+                targetCategoryY = cat.getY();
+                selectedCategoryY = targetCategoryY;
+            }
+            
+            this.addDrawableChild(categoryList);
+            this.addDrawableChild(optionList);
+            
+            int buttonWidth = 80;
+            int buttonY = footerY + 5;
+            
+            StyledButton saveBtn = new StyledButton(this.width - buttonWidth - 10, buttonY, buttonWidth, 20, Text.translatable("button.damage-engine.save_close").withColor(0xFFB7F3C8), () -> {
+                config.save();
+                this.client.setScreen(parent);
+            });
+            footerButtons.add(saveBtn);
+            this.addDrawableChild(saveBtn);
+            
+            StyledButton cancelBtn = new StyledButton(this.width - buttonWidth * 2 - 20, buttonY, buttonWidth, 20, Text.translatable("gui.cancel").withColor(0xFFFC887E), () -> {
+                config.load();
+                this.client.setScreen(parent);
+            });
+            footerButtons.add(cancelBtn);
+            this.addDrawableChild(cancelBtn);
+            
+            int onColor = 0xFFB5F0C6;
+            int offColor = 0xFFFC887E;
+            previewBtnRef[0] = new StyledButton(10, buttonY, 80, 20, Text.translatable("text.damage-engine.preview").append(": ").append(Text.translatable(config.previewEnabled ? "options.on" : "options.off").withColor(config.previewEnabled ? onColor : offColor)), () -> {
+                config.previewEnabled = !config.previewEnabled;
+                previewBtnRef[0].setMessage(Text.translatable("text.damage-engine.preview").append(": ").append(Text.translatable(config.previewEnabled ? "options.on" : "options.off").withColor(config.previewEnabled ? onColor : offColor)));
+            });
+            footerButtons.add(previewBtnRef[0]);
+            this.addDrawableChild(previewBtnRef[0]);
+        } catch (Exception e) {
+            DamageEngineClient.LOGGER.error("Failed to initialize config screen: ", e);
+        }
+    }
+    
+    private void refreshOptions() {
+        if (optionList == null) return;
+        double scroll = optionList.getScrollAmount();
+        optionList.clearEntriesPublic();
+        initOptionEntries();
+        optionList.setScrollAmount(scroll);
+        
+        // 更新预览开关的状态
+        if (previewBtnRef[0] != null) {
+            int onColor = 0xFFB5F0C6;
+            int offColor = 0xFFFC887E;
+            previewBtnRef[0].setMessage(Text.translatable("text.damage-engine.preview").append(": ").append(Text.translatable(config.previewEnabled ? "options.on" : "options.off").withColor(config.previewEnabled ? onColor : offColor)));
+        }
+    }
+    
+    private void initCategories() {
+        categories.clear();
+        categoryList.clearEntriesPublic();
+        
+        categoryList.addEntryPublic(new CategorySpacerEntry(this)); 
+        
+        addCategory("category.damage_engine.general", 0);
+        addCategory("category.damage_engine.appearance", 1);
+        addCategory("category.damage_engine.keybinds", 2);
+        addCategory("category.damage_engine.other", 3);
+    }
+
+    private void initOptionEntries() {
+        addHeader("category.damage_engine.general");
+        
+        addOption(new BooleanOptionEntry("option.damage-engine.showDamage", config.showDamage, v -> config.showDamage = v));
+        
+        addOption(new ExpandableHeaderEntry("option.damage-engine.info_config", expandInfoConfig, v -> {
+            expandInfoConfig = v;
+            refreshOptions();
+        }));
+        
+        if (expandInfoConfig) {
+            addOption(new BooleanOptionEntry("option.damage-engine.showInfo", config.showInfo, v -> config.showInfo = v));
+            addOption(new NumericEntry("option.damage-engine.infoTrackTime", config.infoTrackTime, v -> config.infoTrackTime = v));
+        }
+        
+        addOption(new ExpandableHeaderEntry("option.damage-engine.damage_display_config", expandDamageDisplayConfig, v -> {
+            expandDamageDisplayConfig = v;
+            refreshOptions();
+        }));
+        
+        if (expandDamageDisplayConfig) {
+            addOption(new BooleanOptionEntry("option.damage-engine.resetEnabled", config.resetEnabled, v -> config.resetEnabled = v));
+            addOption(new NumericEntry("option.damage-engine.resetTime", config.resetTime, v -> config.resetTime = v));
+            addOption(new BooleanOptionEntry("option.damage-engine.showProgressBar", config.showProgressBar, v -> config.showProgressBar = v));
+            addOption(new BooleanOptionEntry("option.damage-engine.showCombo", config.showCombo, v -> config.showCombo = v));
+            addOption(new BooleanOptionEntry("option.damage-engine.showDamageHistory", config.showDamageHistory, v -> config.showDamageHistory = v));
+            addOption(new BooleanOptionEntry("option.damage-engine.showDamageIndicator", config.showDamageIndicator, v -> config.showDamageIndicator = v));
+            addOption(new BooleanOptionEntry("option.damage-engine.showKillIndicator", config.showKillIndicator, v -> config.showKillIndicator = v));
+            
+            addOption(new NumericEntry("option.damage-engine.historyDisappearanceTime", config.historyDisappearanceTime, v -> config.historyDisappearanceTime = v));
+            addOption(new IntegerSliderEntry("option.damage-engine.historyLimit", config.historyLimit, 1, 50, v -> config.historyLimit = v, true));
+            addOption(new IntegerSliderEntry("option.damage-engine.decimalPlaces", config.decimalPlaces, 0, 10, v -> config.decimalPlaces = v, true));
+        }
+        
+        // Rating config at General level
+        addOption(new ExpandableHeaderEntry("option.damage-engine.rating_config", expandRatingConfig, v -> {
+            expandRatingConfig = v;
+            refreshOptions();
+        }));
+        if (expandRatingConfig) {
+                addOption(new BooleanOptionEntry("option.damage-engine.showRating", config.showRating, v -> config.showRating = v));
+                addOption(new NumericEntry("option.damage-engine.ratingResetTime", config.ratingResetTime, v -> config.ratingResetTime = v));
+            
+            addOption(new ExpandableHeaderEntry("option.damage-engine.rating_points", expandRatingPoints, v -> {
+                expandRatingPoints = v;
+                refreshOptions();
+            }));
+            if (expandRatingPoints) {
+                    addOption(new WeightEntry("option.damage-engine.comboPoints", config.comboPoints, v -> config.comboPoints = v, "hint.damage-engine.comboPoints"));
+                    addOption(new WeightEntry("option.damage-engine.hitPoints", config.hitPoints, v -> config.hitPoints = v, null));
+                    addOption(new WeightEntry("option.damage-engine.critPoints", config.critPoints, v -> config.critPoints = v, null));
+                }
+            
+            addOption(new ExpandableHeaderEntry("option.damage-engine.rating_grades", expandRatingGrades, v -> {
+                expandRatingGrades = v;
+                refreshOptions();
+            }));
+            if (expandRatingGrades) {
+                config.ratingGrades.sort((a, b) -> Float.compare(b.minScore, a.minScore));
+                for (int i = 0; i < config.ratingGrades.size(); i++) {
+                    config.ratingGrades.get(i).index = i + 1;
+                }
+                for (DamageEngineConfig.RatingGrade g : new ArrayList<>(config.ratingGrades)) {
+                    addOption(new RatingGradeEntry(g, () -> {
+                        config.ratingGrades.remove(g);
+                        refreshOptions();
+                    }));
+                }
+                addOption(new AddButtonEntry(() -> {
+                    int nextIndex = config.ratingGrades.size() + 1;
+                    config.ratingGrades.add(new DamageEngineConfig.RatingGrade(0f, "F", 0xFFFFFFFF, nextIndex));
+                    refreshOptions();
+                }));
+            }
+        }
+        
+        addHeader("category.damage_engine.appearance");
+        addOption(new ButtonActionEntry("option.damage-engine.edit_pos_label", "button.damage-engine.adjust", () -> {
+            playClickSound();
+            this.client.setScreen(new HudEditorScreen(this));
+        }));
+
+        addOption(new ExpandableHeaderEntry("option.damage-engine.info_appearance", expandInfoAppearance, v -> {
+            expandInfoAppearance = v;
+            refreshOptions();
+        }));
+        
+        if (expandInfoAppearance) {
+            addOption(new HexColorEntry("option.damage-engine.infoBarColor", config.infoBarColor, v -> config.infoBarColor = v));
+            addOption(new HexColorEntry("option.damage-engine.infoBarHealColor", config.infoBarHealColor, v -> config.infoBarHealColor = v));
+            addOption(new HexColorEntry("option.damage-engine.infoBarDamageColor", config.infoBarDamageColor, v -> config.infoBarDamageColor = v));
+            addOption(new HexColorEntry("option.damage-engine.infoBackgroundColor", config.infoBackgroundColor, v -> config.infoBackgroundColor = v));
+            addOption(new IntegerSliderEntry("option.damage-engine.infoBackgroundOpacity", config.infoBackgroundOpacity, 0, 100, v -> config.infoBackgroundOpacity = v, true));
+        }
+        
+        addOption(new ExpandableHeaderEntry("option.damage-engine.damage_display_appearance", expandDamageDisplayAppearance, v -> {
+            expandDamageDisplayAppearance = v;
+            refreshOptions();
+        }));
+        
+        if (expandDamageDisplayAppearance) {
+            addOption(new HexColorEntry("option.damage-engine.progressBarColor", config.progressBarColor, v -> config.progressBarColor = v));
+            addOption(new HexColorEntry("option.damage-engine.comboColor", config.comboColor, v -> config.comboColor = v));
+            addOption(new HexColorEntry("option.damage-engine.historyColor", config.historyColor, v -> config.historyColor = v));
+            addOption(new HexColorEntry("option.damage-engine.normalColor", config.normalColor, v -> config.normalColor = v));
+            addOption(new HexColorEntry("option.damage-engine.critColor", config.critColor, v -> config.critColor = v));
+            
+            addOption(new ExpandableHeaderEntry("option.damage-engine.total_damage_colors", expandDamageColors, v -> {
+                expandDamageColors = v;
+                refreshOptions();
+            }));
+            
+            if (expandDamageColors) {
+                 config.damageThresholds.sort((a, b) -> Float.compare(a.threshold, b.threshold));
+                 
+                 for (DamageEngineConfig.DamageThreshold dt : new ArrayList<>(config.damageThresholds)) {
+                     addOption(new DamageThresholdEntry(dt, () -> {
+                         config.damageThresholds.remove(dt);
+                         refreshOptions();
+                     }));
+                 }
+                 
+                 addOption(new AddButtonEntry(() -> {
+                     float nextVal = 0f;
+                     if (!config.damageThresholds.isEmpty()) {
+                         nextVal = config.damageThresholds.get(config.damageThresholds.size() - 1).threshold + 50f;
+                     }
+                     config.damageThresholds.add(new DamageEngineConfig.DamageThreshold(nextVal, 0xFFFFFFFF));
+                     refreshOptions();
+                 }));
+            }
+            
+            addOption(new ExpandableHeaderEntry("option.damage-engine.damage_indicator_colors", expandDamageIndicatorColors, v -> {
+                expandDamageIndicatorColors = v;
+                refreshOptions();
+            }));
+            
+            if (expandDamageIndicatorColors) {
+                addOption(new HexColorEntry("option.damage-engine.damageIndicatorNormalColor", config.damageIndicatorNormalColor, v -> config.damageIndicatorNormalColor = v));
+                addOption(new HexColorEntry("option.damage-engine.damageIndicatorCritColor", config.damageIndicatorCritColor, v -> config.damageIndicatorCritColor = v));
+                addOption(new HexColorEntry("option.damage-engine.damageIndicatorKillColor", config.damageIndicatorKillColor, v -> config.damageIndicatorKillColor = v));
+            }
+        }
+        
+        addOption(new ExpandableHeaderEntry("option.damage-engine.rating_appearance", expandRatingAppearance, v -> {
+            expandRatingAppearance = v;
+            refreshOptions();
+        }));
+        if (expandRatingAppearance) {
+            addOption(new BooleanOptionEntry("option.damage-engine.rating_use_images", config.ratingUseImages, v -> {
+                config.ratingUseImages = v;
+            }));
+            config.ratingGrades.sort((a, b) -> Float.compare(b.minScore, a.minScore));
+            for (int i = 0; i < config.ratingGrades.size(); i++) {
+                config.ratingGrades.get(i).index = i + 1;
+            }
+            for (DamageEngineConfig.RatingGrade g : new ArrayList<>(config.ratingGrades)) {
+                addOption(new RatingGradeAppearanceEntry(g, config));
+            }
+        }
+        
+        addHeader("category.damage_engine.keybinds");
+        
+        if (DamageEngineClient.configKeyBinding != null) {
+            addOption(new KeybindEntry("key.damage_engine.config", DamageEngineClient.configKeyBinding));
+        }
+        if (DamageEngineClient.toggleHudKeyBinding != null) {
+            addOption(new KeybindEntry("key.damage_engine.toggle_hud", DamageEngineClient.toggleHudKeyBinding));
+        }
+        if (DamageEngineClient.clearDamageKeyBinding != null) {
+            addOption(new KeybindEntry("key.damage_engine.clear_damage", DamageEngineClient.clearDamageKeyBinding));
+        }
+        
+        addHeader("category.damage_engine.other");
+        addOption(new BooleanOptionEntry("option.damage-engine.hideOnF1", config.hideOnF1, v -> config.hideOnF1 = v));
+        addOption(new ExpandableHeaderEntry("option.damage-engine.debugMode", expandDebugMode, v -> {
+            expandDebugMode = v;
+            refreshOptions();
+        }));
+        if (expandDebugMode) {
+            addOption(new BooleanOptionEntry("option.damage-engine.debugShowDamageInfo", config.debugShowDamageInfo, v -> config.debugShowDamageInfo = v));
+            addOption(new BooleanOptionEntry("option.damage-engine.debugShowRating", config.debugShowRating, v -> config.debugShowRating = v));
+        }
+        
+        addOption(new ResetButtonEntry("option.damage-engine.reset", () -> {
+            config.resetToDefaults();
+            KeyBinding.updateKeysByCode();
+            this.client.options.write();
+            refreshOptions();
+        }));
+        
+        addOption(new SpacerEntry(30));
+        addOption(new SpacerEntry(30));
+    }
+    
+    private void addCategory(String key, int id) {
+        CategoryEntry cat = new CategoryEntry(this, Text.translatable(key), id, 0);
+        categoryList.addEntryPublic(cat);
+        categories.add(cat);
+    }
+    
+    private void addHeader(String key) {
+        int currentIndex = optionList.children().size();
+        
+        String keyString = Text.translatable(key).getString();
+        
+        for (CategoryEntry cat : categories) {
+            if (cat.text.getString().equals(keyString)) {
+                cat.targetIndex = currentIndex;
+                break;
+            }
+        }
+        
+        optionList.addEntryPublic(new HeaderEntry(Text.translatable(key)));
+    }
+    
+    private void addOption(OptionEntry entry) {
+        optionList.addEntryPublic(entry);
+    }
+    
+    private void selectCategory(int index) {
+        selectedCategoryIndex = index;
+        if (index >= 0 && index < categories.size()) {
+            CategoryEntry cat = categories.get(index);
+            // 计算目标Y位置
+            targetCategoryY = cat.getY();
+            
+            double y = 0;
+            for (int i = 0; i < cat.targetIndex; i++) {
+                y += 26;
+            }
+            isNavigating = true;
+            optionList.setTargetScroll(y);
+        }
+    }
+    
+
+
+    public void setBinding(boolean binding) {
+        this.isBinding = binding;
+    }
+    
+    public void playClickSound() {
+        try {
+            MinecraftClient client = MinecraftClient.getInstance();
+            if (client != null) {
+                PositionedSoundInstance sound = PositionedSoundInstance.ambient(SoundEvents.UI_BUTTON_CLICK.value(), 1.0F, 0.08F);
+                client.getSoundManager().play(sound);
+            }
+        } catch (Exception e) {
+            DamageEngineClient.LOGGER.error("Failed to play sound", e);
+        }
+    }
+
+        @Override
+        public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+            if (isBinding) {
+                if (optionList != null) {
+                    for (OptionEntry entry : optionList.children()) {
+                        if (entry instanceof KeybindEntry ke) {
+                            if (ke.isBinding()) {
+                                if (ke.button.keyPressed(keyCode, scanCode, modifiers)) {
+                                    return true;
+                                }
+                            }
+                        }
+                    }
+                }
+                if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
+                    setBinding(false);
+                    return true;
+                }
+            }
+            return super.keyPressed(keyCode, scanCode, modifiers);
+        }
+
+    @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (optionList != null) {
+            for (OptionEntry entry : optionList.children()) {
+                for (Element child : entry.children()) {
+                    if (child instanceof TextFieldWidget tf) {
+                        tf.setFocused(false);
+                    }
+                }
+            }
+        }
+        
+        if (isBinding) {
+             if (optionList != null) {
+                 for (OptionEntry entry : optionList.children()) {
+                     if (entry instanceof KeybindEntry ke && ke.isBinding()) {
+                         ke.bindMouse(button);
+                         return true;
+                     }
+                 }
+             }
+             setBinding(false);
+             return true;
+         }
+        return super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    @Override
+    public void close() {
+        super.close();
+    }
+    
+    @Override
+    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
+        this.renderBackground(context, mouseX, mouseY, delta);
+        
+        if (categoryList != null) categoryList.render(context, mouseX, mouseY, delta);
+        if (optionList != null) {
+            optionList.render(context, mouseX, mouseY, delta);
+            optionList.updateSmoothScroll(delta);
+        }
+        
+        if (optionList != null && !isNavigating) {
+            int hoveredIndex = optionList.getHoveredEntryIndex(mouseX, mouseY);
+            if (hoveredIndex != -1) {
+                 int bestCatId = -1;
+                 for (CategoryEntry cat : categories) {
+                     if (cat.targetIndex <= hoveredIndex) {
+                         bestCatId = cat.id;
+                     } else {
+                         break;
+                     }
+                 }
+                 if (bestCatId != -1 && bestCatId != selectedCategoryIndex) {
+                     selectedCategoryIndex = bestCatId;
+                     // 更新目标Y位置
+                     if (bestCatId >= 0 && bestCatId < categories.size()) {
+                         CategoryEntry cat = categories.get(bestCatId);
+                         targetCategoryY = cat.getY();
+                     }
+                 }
+            }
+        }
+        
+        // 平滑更新选中分类的Y位置
+        selectedCategoryY = MathHelper.lerp(0.15f, selectedCategoryY, targetCategoryY);
+        
+        int leftWidth = 120;
+        int footerY = this.height - 35;
+        
+        context.fill(leftWidth - 1, 0, leftWidth, footerY, 0xFF555555);
+        context.fill(0, footerY - 1, this.width, footerY, 0xFF555555);
+        
+        context.fill(0, 25, leftWidth, 26, 0xFF555555);
+        
+        // 绘制平滑移动的选中亮条
+        if (selectedCategoryY > 0) {
+            context.fill(0, (int)selectedCategoryY + 2, 2, (int)selectedCategoryY + 25 - 2, 0xFFFFFFFF);
+        }
+        
+        for (StyledButton btn : footerButtons) {
+            btn.render(context, mouseX, mouseY, delta);
+        }
+        
+        context.drawTextWithShadow(this.textRenderer, Text.translatable("category.damage_engine"), 10, 10, 0xFFFFFFFF);
+        
+        if (config.previewEnabled) {
+            new DamageHud().renderPreview(context, this.width/2, this.height/2);
+        }
+        
+
+    }
+    
+
+    
+    
+    private static class CategorySpacerEntry extends CategoryEntry {
+        public CategorySpacerEntry(DamageConfigScreen screen) {
+            super(screen, Text.empty(), -1, -1);
+        }
+        @Override public void render(DrawContext context, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {}
+        @Override public boolean mouseClicked(double mouseX, double mouseY, int button) { return false; }
+    }
+
+    private static class CategoryEntry extends ElementListWidget.Entry<CategoryEntry> {
+        private final Text text;
+        private final int id;
+        private int targetIndex;
+        private final MinecraftClient client = MinecraftClient.getInstance();
+        private final DamageConfigScreen screen;
+        private int lastY = 0;
+        
+        public CategoryEntry(DamageConfigScreen screen, Text text, int id, int targetIndex) { 
+            this.screen = screen;
+            this.text = text; 
+            this.id = id; 
+            this.targetIndex = targetIndex;
+        }
+        
+        public int getY() {
+            return lastY;
+        }
+        
+        @Override
+        public void render(DrawContext context, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+            lastY = y;
+            
+            context.drawTextWithShadow(client.textRenderer, text, x + 10, y + 8, 0xFFFFFFFF);
+        }
+        
+        @Override public List<? extends Element> children() { return Collections.emptyList(); }
+        @Override public List<? extends Selectable> selectableChildren() { return Collections.emptyList(); }
+        
+        @Override
+        public boolean mouseClicked(double mouseX, double mouseY, int button) {
+            screen.selectCategory(id);
+            screen.playClickSound();
+            return true;
+        }
+    }
+    
+    private class CategoryListWidget extends ElementListWidget<CategoryEntry> {
+        public CategoryListWidget(MinecraftClient client, int width, int height, int y, int itemHeight) {
+            super(client, width, height, y, 25);
+        }
+        
+        @Override
+        protected void drawMenuListBackground(DrawContext context) {
+        }
+        public void clearEntriesPublic() { this.clearEntries(); }
+        
+        public void renderWidget(DrawContext context, int mouseX, int mouseY, float delta) {
+             this.enableScissor(context);
+             this.renderList(context, mouseX, mouseY, delta);
+             context.disableScissor();
+        }
+
+        @Override public int getRowWidth() { return 100; }
+        public void addEntryPublic(CategoryEntry entry) { this.addEntry(entry); }
+        @Override public int getRowLeft() { return 0; }
+        @Override protected void drawHeaderAndFooterSeparators(DrawContext context) {}
+    }
+    
+    private abstract static class OptionEntry extends ElementListWidget.Entry<OptionEntry> {
+        private double hoverAnimationProgress = 0;
+        
+        @Override
+        public void render(DrawContext context, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+            DamageConfigScreen screen = (DamageConfigScreen) MinecraftClient.getInstance().currentScreen;
+            if (screen == null || screen.optionList == null) return;
+            
+            int listLeft = screen.optionList.getX();
+        int listRight = screen.optionList.getRight();
+        boolean isHovered = mouseX >= listLeft && mouseX <= listRight && mouseY >= y && mouseY < y + entryHeight;
+        
+        if (isHovered && shouldHighlight()) {
+            hoverAnimationProgress = MathHelper.lerp(0.1f, hoverAnimationProgress, 1.0f);
+        } else {
+            hoverAnimationProgress = MathHelper.lerp(0.1f, hoverAnimationProgress, 0.0f);
+        }
+        
+        if (hoverAnimationProgress > 0.01 && shouldHighlight()) {
+            int alpha = (int)(26 * hoverAnimationProgress);
+            int top = y;
+            int bottom = y + entryHeight + 2;
+            context.fill(listLeft, top, listRight, bottom, (alpha << 24) | 0xFFFFFF);
+        }
+            renderContent(context, index, y, x, entryWidth, entryHeight, mouseX, mouseY, isHovered, tickDelta);
+        }
+        
+        public abstract void renderContent(DrawContext context, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta);
+        
+        protected boolean shouldHighlight() { return true; }
+        
+        @Override
+        public boolean mouseClicked(double mouseX, double mouseY, int button) {
+            for (Element child : this.children()) {
+                if (child instanceof TextFieldWidget tf) {
+                    if (tf.isMouseOver(mouseX, mouseY)) {
+                        tf.setFocused(true);
+                        return true;
+                    } else {
+                        tf.setFocused(false);
+                    }
+                } else if (child.mouseClicked(mouseX, mouseY, button)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        
+        @Override
+        public boolean mouseReleased(double mouseX, double mouseY, int button) {
+            for (Element child : this.children()) {
+                if (child.mouseReleased(mouseX, mouseY, button)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        
+        @Override
+        public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
+            for (Element child : this.children()) {
+                if (child.mouseDragged(mouseX, mouseY, button, deltaX, deltaY)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+                  
+        @Override
+        public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+            for (Element child : this.children()) {
+                if (child.keyPressed(keyCode, scanCode, modifiers)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        
+        @Override
+        public boolean charTyped(char chr, int modifiers) {
+            for (Element child : this.children()) {
+                if (child.charTyped(chr, modifiers)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        
+        @Override
+        public boolean keyReleased(int keyCode, int scanCode, int modifiers) {
+             for (Element child : this.children()) {
+                if (child.keyReleased(keyCode, scanCode, modifiers)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
+    
+    private class ConfigOptionListWidget extends ElementListWidget<OptionEntry> {
+        private double targetScroll = 0;
+        private boolean isSmoothScrolling = false;
+        private boolean scrolling = false;
+
+        public ConfigOptionListWidget(MinecraftClient client, int width, int height, int y, int itemHeight) {
+            super(client, width, height, y, 26);
+        }
+        
+        @Override
+        public boolean mouseClicked(double mouseX, double mouseY, int button) {
+            if (mouseX >= getScrollbarX() && mouseX <= getScrollbarX() + 6) {
+                 scrolling = true;
+                 return true;
+            }
+            return super.mouseClicked(mouseX, mouseY, button);
+        }
+        
+        @Override
+        public boolean mouseReleased(double mouseX, double mouseY, int button) {
+            scrolling = false;
+            return super.mouseReleased(mouseX, mouseY, button);
+        }
+        
+        @Override
+        protected void drawMenuListBackground(DrawContext context) {
+        }
+
+        public int getHoveredEntryIndex(double mouseX, double mouseY) {
+             if (mouseX < this.getX() || mouseX > this.getRight() || mouseY < this.getY() || mouseY > this.getBottom()) {
+                 return -1;
+             }
+             int i = MathHelper.floor(mouseY - (double)this.getY() - 0 + this.getScrollAmount() - 4.0D);
+             int index = i / 26;
+             if (index >= 0 && index < this.getEntryCount()) {
+                 return index;
+             }
+             return -1;
+        }
+        
+        public void clearEntriesPublic() { this.clearEntries(); }
+        @Override public int getRowWidth() { return this.width - 20; } 
+        public void addEntryPublic(OptionEntry entry) { this.addEntry(entry); }
+        @Override
+        public int getRowLeft() { return this.getX() + 10; }
+        public int getScrollbarX() { return this.getRight() - 6; }
+        
+        @Override
+        protected void drawHeaderAndFooterSeparators(DrawContext context) {}
+        
+        @Override
+        public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
+             if (scrolling) {
+                 int barHeight = this.getHeight();
+                 int contentHeight = this.getMaxScroll() + this.getHeight();
+                 if (contentHeight > barHeight) {
+                     int scrollbarHeight = (int)((float)(barHeight * barHeight) / (float)contentHeight);
+                     scrollbarHeight = Math.max(32, scrollbarHeight);
+                     if (scrollbarHeight > barHeight) scrollbarHeight = barHeight;
+                     
+                     double d = Math.max(1, this.getMaxScroll() / (double)(barHeight - scrollbarHeight));
+                     this.setScrollAmount(this.getScrollAmount() + deltaY * d);
+                 }
+                 return true;
+             }
+             return super.mouseDragged(mouseX, mouseY, button, deltaX, deltaY);
+        }
+        
+        public void renderWidget(DrawContext context, int mouseX, int mouseY, float delta) {
+             this.enableScissor(context);
+             this.renderList(context, mouseX, mouseY, delta);
+             context.disableScissor();
+             
+             int scrollbarX = this.getScrollbarX();
+             int scrollbarY = this.getY();
+             int scrollbarHeight = this.getHeight();
+             int contentHeight = this.getMaxScroll() + this.getHeight();
+             
+             if (contentHeight > this.getHeight()) {
+                 int barHeight = (int)((float)(this.getHeight() * this.getHeight()) / (float)contentHeight);
+                 barHeight = Math.max(32, barHeight);
+                 if (barHeight > this.getHeight()) barHeight = this.getHeight();
+                 
+                 int barTop = (int)this.getScrollAmount() * (this.getHeight() - barHeight) / (this.getMaxScroll()) + this.getY();
+                 if (barTop < this.getY()) barTop = this.getY();
+                 
+                 context.fill(scrollbarX, scrollbarY, scrollbarX + 6, scrollbarY + scrollbarHeight, 0x80000000);
+                 context.fill(scrollbarX, barTop, scrollbarX + 6, barTop + barHeight, 0xA0FFFFFF);
+            }
+       }
+
+        public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
+            DamageConfigScreen.this.isNavigating = false;
+            this.targetScroll = this.getScrollAmount() - verticalAmount * 80.0;
+            this.targetScroll = Math.max(0, Math.min(this.targetScroll, this.getMaxScroll()));
+            this.isSmoothScrolling = true;
+            return true;
+        }
+        
+        public void setTargetScroll(double scroll) {
+            this.targetScroll = Math.max(0, Math.min(scroll, this.getMaxScroll()));
+            this.isSmoothScrolling = true;
+        }
+        
+        public void updateSmoothScroll(float delta) {
+            if (isSmoothScrolling) {
+                double current = this.getScrollAmount();
+                if (Math.abs(current - targetScroll) < 0.5) {
+                    this.setScrollAmount(targetScroll);
+                    isSmoothScrolling = false;
+                    DamageConfigScreen.this.isNavigating = false;
+                } else {
+                    this.setScrollAmount(MathHelper.lerp(0.5f * delta, current, targetScroll));
+                }
+            } else {
+                targetScroll = this.getScrollAmount();
+                DamageConfigScreen.this.isNavigating = false;
+            }
+        }
+    }
+    
+    
+    private static class HeaderEntry extends OptionEntry {
+        private final Text text;
+        private final MinecraftClient client = MinecraftClient.getInstance();
+        public HeaderEntry(Text text) { this.text = text; }
+        @Override
+        protected boolean shouldHighlight() { return false; }
+        @Override
+        public void renderContent(DrawContext context, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+            context.drawCenteredTextWithShadow(client.textRenderer, text, x + entryWidth / 2, y + 9, 0xFFFFFFFF);
+        }
+        @Override public List<? extends Element> children() { return Collections.emptyList(); }
+        @Override public List<? extends Selectable> selectableChildren() { return Collections.emptyList(); }
+    }
+
+    private static class BooleanOptionEntry extends OptionEntry {
+        private final StyledButton button;
+        private final Text label;
+        private final Text hint;
+        private boolean state;
+        private final MinecraftClient client = MinecraftClient.getInstance();
+        
+        public BooleanOptionEntry(String key, boolean initial, Consumer<Boolean> onToggle) {
+            this(Text.translatable(key), initial, onToggle,
+                "option.damage-engine.resetEnabled".equals(key) ? Text.translatable("hint.damage-engine.resetEnabled")
+                    : "option.damage-engine.showInfo".equals(key) ? Text.translatable("hint.damage-engine.showInfo")
+                    : null);
+        }
+
+        public BooleanOptionEntry(Text label, boolean initial, Consumer<Boolean> onToggle, Text hint) {
+            this.state = initial;
+            this.label = label;
+            this.hint = hint;
+            int onColor = 0xFFB5F0C6;
+            int offColor = 0xFFFC887E;
+            
+            final StyledButton[] btnRef = new StyledButton[1];
+            btnRef[0] = new StyledButton(0, 0, 100, 20, Text.translatable(state ? "options.on" : "options.off").withColor(state ? onColor : offColor), () -> {
+                state = !state;
+                btnRef[0].setMessage(Text.translatable(state ? "options.on" : "options.off").withColor(state ? onColor : offColor));
+                onToggle.accept(state);
+            });
+            this.button = btnRef[0];
+        }
+        @Override
+        public void renderContent(DrawContext context, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+            if (hint != null) {
+                context.drawTextWithShadow(client.textRenderer, label, x, y + 4, 0xFFFFFFFF);
+                context.drawTextWithShadow(client.textRenderer, hint, x, y + 14, 0xFFA0A0A0);
+            } else {
+                context.drawTextWithShadow(client.textRenderer, label, x, y + 8, 0xFFFFFFFF);
+            }
+            button.setX(x + entryWidth - 110);
+            button.setY(y + 2);
+            button.setFocused(false); 
+            button.render(context, mouseX, mouseY, tickDelta);
+        }
+        @Override public List<? extends Element> children() { return Collections.singletonList(button); }
+        @Override public List<? extends Selectable> selectableChildren() { return Collections.singletonList(button); }
+    }
+    
+    private static class StyledSliderWidget extends SliderWidget {
+        private final boolean showValue;
+        private final boolean soundOnPress;
+        private final boolean soundOnRelease;
+        private boolean pendingReleaseSound;
+        private double valueBeforeInteraction;
+        
+
+        
+        public StyledSliderWidget(int x, int y, int width, int height, Text text, double value, boolean showValue, boolean soundOnPress, boolean soundOnRelease) {
+            super(x, y, width, height, text, value);
+            this.showValue = showValue;
+            this.soundOnPress = soundOnPress;
+            this.soundOnRelease = soundOnRelease;
+        }
+        
+        @Override
+        protected void updateMessage() {} 
+        
+        @Override
+        protected void applyValue() {} 
+
+        private void playConfiguredClickSound() {
+            if (MinecraftClient.getInstance().currentScreen instanceof DamageConfigScreen s) {
+                s.playClickSound();
+            } else {
+                super.playDownSound(MinecraftClient.getInstance().getSoundManager());
+            }
+        }
+        
+        @Override
+        public void playDownSound(net.minecraft.client.sound.SoundManager soundManager) {
+             if (!soundOnPress) return;
+             playConfiguredClickSound();
+        }
+        
+        @Override
+        public boolean mouseClicked(double mouseX, double mouseY, int button) {
+            boolean handled = super.mouseClicked(mouseX, mouseY, button);
+            if (handled && soundOnRelease) {
+                pendingReleaseSound = true;
+                valueBeforeInteraction = this.value;
+            }
+            return handled;
+        }
+        
+        @Override
+        public boolean mouseReleased(double mouseX, double mouseY, int button) {
+            boolean handled = super.mouseReleased(mouseX, mouseY, button);
+            if (soundOnRelease && pendingReleaseSound) {
+                pendingReleaseSound = false;
+                if (Math.abs(this.value - valueBeforeInteraction) > 1.0E-9) {
+                    playConfiguredClickSound();
+                }
+            }
+            return handled;
+        }
+        
+        @Override
+        public void renderWidget(DrawContext context, int mouseX, int mouseY, float delta) {
+            int x = getX();
+            int y = getY();
+            int w = getWidth();
+            int h = getHeight();
+            
+            context.fill(x, y, x + w, y + h, 0x20000000);
+            
+            int borderColor = isHovered() ? 0xFFFFFFFF : 0xFFA0A0A0;
+            context.fill(x, y, x + w, y + 1, borderColor); 
+            context.fill(x, y + h - 1, x + w, y + h, borderColor); 
+            context.fill(x, y, x + 1, y + h, borderColor); 
+            context.fill(x + w - 1, y, x + w, y + h, borderColor); 
+            
+            int handleWidth = 8;
+            int handleX = x + (int)(this.value * (double)(w - handleWidth));
+            int handleY = y;
+            
+            int handleBorderColor = (isHovered() || isFocused()) ? 0xFFFFFFFF : 0xFFCCCCCC;
+            
+            context.fill(handleX, handleY, handleX + handleWidth, handleY + h, 0xFF000000); 
+            
+            context.fill(handleX, handleY, handleX + handleWidth, handleY + 1, handleBorderColor);
+            context.fill(handleX, handleY + h - 1, handleX + handleWidth, handleY + h, handleBorderColor);
+            context.fill(handleX, handleY, handleX + 1, handleY + h, handleBorderColor);
+            context.fill(handleX + handleWidth - 1, handleY, handleX + handleWidth, handleY + h, handleBorderColor);
+            
+            if (showValue) {
+                context.drawCenteredTextWithShadow(MinecraftClient.getInstance().textRenderer, getMessage(), x + w / 2, y + (h - 8) / 2, 0xFFFFFFFF);
+            }
+        }
+    }
+
+
+
+    private static class IntegerSliderEntry extends OptionEntry {
+        private final StyledSliderWidget slider;
+        private final Text label;
+        private final MinecraftClient client = MinecraftClient.getInstance();
+        
+
+        
+        public IntegerSliderEntry(String key, int current, int min, int max, Consumer<Integer> onChange, boolean soundOnReleaseOnly) {
+            this.label = Text.translatable(key);
+            float minF = (float)min;
+            float maxF = (float)max;
+            float currentF = (float)current;
+            
+            this.slider = new StyledSliderWidget(0, 0, 100, 20, Text.literal(String.valueOf(current)), (currentF - minF) / (maxF - minF), true, !soundOnReleaseOnly, soundOnReleaseOnly) {
+                @Override protected void updateMessage() { 
+                    int val = (int)Math.round(minF + this.value * (maxF - minF));
+                    this.setMessage(Text.literal(String.valueOf(val))); 
+                }
+                @Override protected void applyValue() { 
+                    int val = (int)Math.round(minF + this.value * (maxF - minF));
+                    onChange.accept(val); 
+                }
+            };
+        }
+        @Override
+        public void renderContent(DrawContext context, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+            context.drawTextWithShadow(client.textRenderer, label, x, y + 8, 0xFFFFFFFF);
+            slider.setX(x + entryWidth - 110);
+            slider.setY(y + 2);
+            slider.render(context, mouseX, mouseY, tickDelta);
+        }
+        @Override public List<? extends Element> children() { return Collections.singletonList(slider); }
+        @Override public List<? extends Selectable> selectableChildren() { return Collections.singletonList(slider); }
+    }
+    
+    private class ResetButtonEntry extends OptionEntry {
+        private final StyledButton button;
+        private final Runnable onReset;
+        private final Text label;
+        private final MinecraftClient client = MinecraftClient.getInstance();
+
+        public ResetButtonEntry(String key, Runnable onReset) {
+            this.label = Text.translatable(key);
+            this.onReset = onReset;
+            int color = 0xFFFC887E; 
+            Text btnText = Text.translatable("gui.reset");
+            
+            if (resetButtonState == 1) {
+                 btnText = Text.translatable("gui.confirm").append("?");
+            } else if (resetButtonState == 2) {
+                 color = 0xFFB5F0C6;
+                 btnText = Text.translatable("text.damage-engine.reset_done");
+            }
+            
+            this.button = new StyledButton(0, 0, 100, 20, btnText.copy().withColor(color), () -> handleClick());
+        }
+        
+        private void handleClick() {
+            if (resetButtonState == 0) {
+                resetButtonState = 1;
+                button.setMessage(Text.translatable("gui.confirm").append("?").withColor(0xFFFC887E));
+                resetButtonActionTime = System.currentTimeMillis();
+            } else if (resetButtonState == 1) {
+                resetButtonState = 2;
+                resetButtonActionTime = System.currentTimeMillis();
+                onReset.run();
+                button.setMessage(Text.translatable("text.damage-engine.reset_done").withColor(0xFFB5F0C6));
+            }
+        }
+        
+        @Override
+        public void renderContent(DrawContext context, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+            if (resetButtonState == 2) {
+                if (System.currentTimeMillis() - resetButtonActionTime > 3000) {
+                    resetButtonState = 0;
+                    button.setMessage(Text.translatable("gui.reset").withColor(0xFFFC887E));
+                }
+            } else if (resetButtonState == 1) {
+                if (System.currentTimeMillis() - resetButtonActionTime > 5000) {
+                    resetButtonState = 0;
+                    button.setMessage(Text.translatable("gui.reset").withColor(0xFFFC887E));
+                }
+            }
+            
+            context.drawTextWithShadow(client.textRenderer, label, x, y + 8, 0xFFFC887E);
+            
+            button.setX(x + entryWidth - 110);
+            button.setY(y + 2);
+            button.setFocused(false);
+            button.render(context, mouseX, mouseY, tickDelta);
+        }
+        @Override public List<? extends Element> children() { return Collections.singletonList(button); }
+        @Override public List<? extends Selectable> selectableChildren() { return Collections.singletonList(button); }
+    }
+    
+    private static class ExpandableHeaderEntry extends OptionEntry {
+        private final PlainTextButton button;
+        private final Text label;
+        private final MinecraftClient client = MinecraftClient.getInstance();
+        private boolean expanded;
+        private final Consumer<Boolean> onToggle;
+        
+        public ExpandableHeaderEntry(String key, boolean expanded, Consumer<Boolean> onToggle) {
+            this.label = Text.translatable(key);
+            this.expanded = expanded;
+            this.onToggle = onToggle;
+            
+            this.button = new PlainTextButton(0, 0, 20, 20, Text.literal(expanded ? "-" : "+"), () -> onToggle.accept(!expanded), 0xFFFFFFFF, 0xFFFBFB54);
+        }
+        
+        @Override
+        public void renderContent(DrawContext context, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+            boolean isHovered = hovered || (mouseX >= x && mouseX <= x + entryWidth && mouseY >= y && mouseY <= y + entryHeight);
+            int color = isHovered ? 0xFFFBFB54 : 0xFFFFFFFF;
+            
+            context.drawTextWithShadow(client.textRenderer, label, x, y + 8, color);
+            
+            button.setX(x + entryWidth - 25);
+            button.setY(y + 2);
+            button.setFocused(false);
+            button.setForceHover(isHovered);
+            button.render(context, mouseX, mouseY, tickDelta);
+        }
+        
+        @Override
+        public boolean mouseClicked(double mouseX, double mouseY, int button) {
+             if (this.button.mouseClicked(mouseX, mouseY, button)) return true;
+             
+             if (this.onToggle != null) {
+                 this.onToggle.accept(!expanded);
+                 if (MinecraftClient.getInstance().currentScreen instanceof DamageConfigScreen s) {
+                     s.playClickSound();
+                 }
+                 return true;
+             }
+             return false;
+        }
+        
+        @Override public List<? extends Element> children() { return Collections.singletonList(button); }
+        @Override public List<? extends Selectable> selectableChildren() { return Collections.singletonList(button); }
+    }
+
+    private static class DamageThresholdEntry extends OptionEntry {
+        private final TextFieldWidget valField;
+        private final TextFieldWidget colField;
+        private final PlainTextButton delBtn;
+        private final MinecraftClient client = MinecraftClient.getInstance();
+        private int currentColor;
+        
+        public DamageThresholdEntry(DamageEngineConfig.DamageThreshold dt, Runnable onDelete) {
+            this.currentColor = dt.color;
+            
+            this.valField = new TextFieldWidget(client.textRenderer, 0, 0, 40, 20, Text.empty());
+            this.valField.setDrawsBackground(false);
+            this.valField.setText(String.format("%.0f", dt.threshold));
+            this.valField.setChangedListener(s -> {
+                try { dt.threshold = Float.parseFloat(s); } catch(Exception ignored){}
+            });
+            
+            this.colField = new TextFieldWidget(client.textRenderer, 0, 0, 55, 20, Text.empty());
+            this.colField.setDrawsBackground(false);
+            this.colField.setMaxLength(7);
+            this.colField.setText("#" + String.format("%06X", dt.color & 0xFFFFFF));
+            this.colField.setChangedListener(s -> {
+                try { 
+                    String hex = s.startsWith("#") ? s.substring(1) : s;
+                    int v = (int)Long.parseLong(hex, 16);
+                    dt.color = v;
+                    this.currentColor = v;
+                } catch(Exception ignored){}
+            });
+            
+            this.delBtn = new PlainTextButton(0, 0, 20, 20, Text.literal("-"), onDelete, 0xFFFFFFFF, 0xFFFBFB54);
+        }
+        
+        @Override
+        public void renderContent(DrawContext context, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+            int rightX = x + entryWidth;
+            
+            delBtn.setX(rightX - 25); 
+            delBtn.setY(y + 2);
+            delBtn.setWidth(20);
+            delBtn.setForceHover(hovered);
+            
+            int previewSize = 18;
+            int previewX = rightX - 25 - 5 - previewSize;
+            int previewY = y + 2 + 1;
+            
+            int colBoxW = 55;
+            int colBoxX = previewX - 5 - colBoxW;
+            int colBoxY = y + 2;
+            int colBoxH = 20;
+            
+            colField.setX(colBoxX + 4);
+            colField.setY(colBoxY + 6);
+            colField.setWidth(colBoxW - 8);
+            colField.setHeight(12);
+            
+            int valBoxW = 40;
+            int valBoxX = colBoxX - 5 - valBoxW;
+            int valBoxY = y + 2;
+            int valBoxH = 20;
+            
+            valField.setX(valBoxX + 4);
+            valField.setY(valBoxY + 6);
+            valField.setWidth(valBoxW - 8);
+            valField.setHeight(12); 
+            
+            Text label = Text.translatable("text.damage-engine.damage_reach");
+            
+            int labelColor = 0xFFFFFFFF; 
+            
+            context.drawTextWithShadow(client.textRenderer, label, x + 10, y + 8, labelColor);
+            
+            context.fill(valBoxX, valBoxY, valBoxX + valBoxW, valBoxY + valBoxH, 0x20000000);
+            int vx = valBoxX, vy = valBoxY, vw = valBoxW, vh = valBoxH;
+            int valBorderColor = (valField.isFocused() || valField.isMouseOver(mouseX, mouseY)) ? 0xFFFFFFFF : 0xFFA0A0A0;
+            context.fill(vx, vy, vx + vw, vy + 1, valBorderColor);
+            context.fill(vx, vy + vh - 1, vx + vw, vy + vh, valBorderColor);
+            context.fill(vx, vy, vx + 1, vy + vh, valBorderColor);
+            context.fill(vx + vw - 1, vy, vx + vw, vy + vh, valBorderColor);
+            
+            context.fill(colBoxX, colBoxY, colBoxX + colBoxW, colBoxY + colBoxH, 0x20000000);
+            int cx = colBoxX, cy = colBoxY, cw = colBoxW, ch = colBoxH;
+            int colBorderColor = (colField.isFocused() || colField.isMouseOver(mouseX, mouseY)) ? 0xFFFFFFFF : 0xFFA0A0A0;
+            context.fill(cx, cy, cx + cw, cy + 1, colBorderColor);
+            context.fill(cx, cy + ch - 1, cx + cw, cy + ch, colBorderColor);
+            context.fill(cx, cy, cx + 1, cy + ch, colBorderColor);
+            context.fill(cx + cw - 1, cy, cx + cw, cy + ch, colBorderColor);
+            
+            valField.render(context, mouseX, mouseY, tickDelta);
+            colField.render(context, mouseX, mouseY, tickDelta);
+            delBtn.render(context, mouseX, mouseY, tickDelta);
+            
+            context.fill(previewX - 1, previewY - 1, previewX + previewSize + 1, previewY + previewSize + 1, 0xFFFFFFFF);
+            context.fill(previewX, previewY, previewX + previewSize, previewY + previewSize, 0xFF000000 | (currentColor & 0xFFFFFF));
+        }
+        
+        @Override
+        public List<? extends Element> children() {
+            return java.util.Arrays.asList(valField, colField, delBtn);
+        }
+        
+        @Override
+        public List<? extends Selectable> selectableChildren() {
+            return java.util.Arrays.asList(valField, colField, delBtn);
+        }
+    }
+
+    private static class AddButtonEntry extends OptionEntry {
+        private final PlainTextButton button;
+        private final Runnable action;
+        
+        public AddButtonEntry(Runnable action) {
+            this.action = action;
+            this.button = new PlainTextButton(0, 0, 20, 20, Text.literal("+"), action, 0xFFFFFFFF, 0xFFFBFB54);
+        }
+        
+        @Override
+        public void renderContent(DrawContext context, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+            // Full row clickable area
+            boolean rowHovered = mouseX >= x && mouseX <= x + entryWidth && mouseY >= y && mouseY <= y + entryHeight;
+            button.setX(x + entryWidth - 25);
+            button.setY(y + 2);
+            button.setFocused(false);
+            button.setForceHover(rowHovered);
+            
+            if (hovered) {
+                context.fill(x, y, x + entryWidth, y + entryHeight, 0x20FFFFFF);
+            }
+            
+            button.render(context, mouseX, mouseY, tickDelta);
+        }
+        
+        @Override
+        public boolean mouseClicked(double mouseX, double mouseY, int button) {
+            if (isMouseOver(mouseX, mouseY)) {
+                action.run();
+                return true;
+            }
+            return false;
+        }
+        
+        @Override public List<? extends Element> children() { return Collections.singletonList(button); }
+        @Override public List<? extends Selectable> selectableChildren() { return Collections.singletonList(button); }
+    }
+    
+    private static class ButtonActionEntry extends OptionEntry {
+        private final StyledButton button;
+        private final Text label;
+        private final MinecraftClient client = MinecraftClient.getInstance();
+        public ButtonActionEntry(String labelKey, String buttonKey, Runnable action) {
+            this.label = Text.translatable(labelKey); 
+            this.button = new StyledButton(0, 0, 100, 20, Text.translatable(buttonKey), action);
+        }
+        @Override
+        public void renderContent(DrawContext context, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+            context.drawTextWithShadow(client.textRenderer, label, x, y + 8, 0xFFFFFFFF);
+            button.setX(x + entryWidth - 110);
+            button.setY(y + 2);
+            button.setFocused(false);
+            button.render(context, mouseX, mouseY, tickDelta);
+        }
+        @Override public List<? extends Element> children() { return Collections.singletonList(button); }
+        @Override public List<? extends Selectable> selectableChildren() { return Collections.singletonList(button); }
+    }
+    
+    private static class NumericEntry extends OptionEntry {
+        private final TextFieldWidget field;
+        private final Text label;
+        private final MinecraftClient client = MinecraftClient.getInstance();
+        public NumericEntry(String key, float initial, Consumer<Float> onChange) {
+            this.label = Text.translatable(key);
+            this.field = new TextFieldWidget(client.textRenderer, 0, 0, 100, 20, Text.empty());
+            this.field.setDrawsBackground(false);
+            this.field.setText(String.valueOf(initial));
+            this.field.setChangedListener(s -> { try { onChange.accept(Float.parseFloat(s)); } catch(Exception ignored){} });
+        }
+        @Override
+        public void renderContent(DrawContext context, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+            context.drawTextWithShadow(client.textRenderer, label, x, y + 8, 0xFFFFFFFF);
+            
+            int boxX = x + entryWidth - 110;
+            int boxY = y + 2;
+            int boxW = 100;
+            int boxH = 20;
+            
+            field.setX(boxX + 4);
+            field.setY(boxY + 6);
+            field.setWidth(boxW - 8);
+            field.setHeight(12);
+            
+            context.fill(boxX, boxY, boxX + boxW, boxY + boxH, 0x20000000);
+            int fx = boxX, fy = boxY, fw = boxW, fh = boxH;
+            int borderColor = (field.isFocused() || field.isMouseOver(mouseX, mouseY)) ? 0xFFFFFFFF : 0xFFA0A0A0;
+            context.fill(fx, fy, fx + fw, fy + 1, borderColor);
+            context.fill(fx, fy + fh - 1, fx + fw, fy + fh, borderColor);
+            context.fill(fx, fy, fx + 1, fy + fh, borderColor);
+            context.fill(fx + fw - 1, fy, fx + fw, fy + fh, borderColor);
+            
+            field.render(context, mouseX, mouseY, tickDelta);
+        }
+        @Override public List<? extends Element> children() { return Collections.singletonList(field); }
+        @Override public List<? extends Selectable> selectableChildren() { return Collections.singletonList(field); }
+    }
+    
+    private static class HexColorEntry extends OptionEntry {
+        private final TextFieldWidget field;
+        private final Text label;
+        private final MinecraftClient client = MinecraftClient.getInstance();
+        private int currentColor;
+
+        public HexColorEntry(String key, int initial, Consumer<Integer> onChange) {
+            this.label = Text.translatable(key);
+            this.currentColor = initial;
+            this.field = new TextFieldWidget(client.textRenderer, 0, 0, 75, 20, Text.empty());
+            this.field.setDrawsBackground(false);
+            this.field.setMaxLength(7);
+            this.field.setText("#" + String.format("%06X", initial & 0xFFFFFF));
+            this.field.setChangedListener(s -> { 
+                try { 
+                    String hex = s.startsWith("#") ? s.substring(1) : s;
+                    int val = (int)Long.parseLong(hex, 16);
+                    this.currentColor = val;
+                    onChange.accept(val); 
+                } catch(Exception ignored){} 
+            });
+        }
+        @Override
+        public void renderContent(DrawContext context, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+            context.drawTextWithShadow(client.textRenderer, label, x, y + 8, 0xFFFFFFFF);
+            
+            int startX = x + entryWidth - 110;
+            int boxX = startX;
+            int boxY = y + 2;
+            int boxW = 75;
+            int boxH = 20;
+            
+            field.setX(boxX + 4);
+            field.setY(boxY + 6);
+            field.setWidth(boxW - 8);
+            field.setHeight(12);
+            
+            context.fill(boxX, boxY, boxX + boxW, boxY + boxH, 0x20000000);
+            int fx = boxX, fy = boxY, fw = boxW, fh = boxH;
+            int borderColor = (field.isFocused() || field.isMouseOver(mouseX, mouseY)) ? 0xFFFFFFFF : 0xFFA0A0A0;
+            context.fill(fx, fy, fx + fw, fy + 1, borderColor);
+            context.fill(fx, fy + fh - 1, fx + fw, fy + fh, borderColor);
+            context.fill(fx, fy, fx + 1, fy + fh, borderColor);
+            context.fill(fx + fw - 1, fy, fx + fw, fy + fh, borderColor);
+            
+            field.render(context, mouseX, mouseY, tickDelta);
+            
+            int previewSize = 17;
+            int previewX = startX + 80;
+            
+            int previewY = y + 2 + 1; 
+            
+            context.fill(previewX - 1, previewY - 1, previewX + previewSize + 1, previewY + previewSize + 1, 0xFFFFFFFF);
+            
+            context.fill(previewX, previewY, previewX + previewSize, previewY + previewSize, 0xFF000000 | (currentColor & 0xFFFFFF));
+        }
+        @Override public List<? extends Element> children() { return Collections.singletonList(field); }
+        @Override public List<? extends Selectable> selectableChildren() { return Collections.singletonList(field); }
+    }
+    
+
+    
+    private static class SpacerEntry extends OptionEntry {
+        public SpacerEntry(int height) { }
+        @Override
+        protected boolean shouldHighlight() { return false; }
+        @Override
+        public void renderContent(DrawContext context, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+        }
+        @Override public List<? extends Element> children() { return Collections.emptyList(); }
+        @Override public List<? extends Selectable> selectableChildren() { return Collections.emptyList(); }
+    }
+    
+    private static class KeybindEntry extends OptionEntry {
+        private final Text label;
+        private final BindingButton button;
+        private final KeyBinding keyBinding;
+        
+        private class BindingButton extends ClickableWidget {
+            private final Runnable onPress;
+
+            public BindingButton(int x, int y, int width, int height, Text message, Runnable onPress) {
+                super(x, y, width, height, message);
+                this.onPress = onPress;
+            }
+            
+            @Override
+            public void playDownSound(net.minecraft.client.sound.SoundManager soundManager) {
+                if (MinecraftClient.getInstance().currentScreen instanceof DamageConfigScreen s) {
+                    s.playClickSound();
+                } else {
+                    super.playDownSound(soundManager);
+                }
+            }
+            
+            @Override
+            public boolean mouseClicked(double mouseX, double mouseY, int button) {
+                 if (this.active && this.visible && button == 0) {
+                     if (this.isMouseOver(mouseX, mouseY)) {
+                        this.playDownSound(MinecraftClient.getInstance().getSoundManager());
+                        this.onPress.run();
+                        return true;
+                     }
+                 }
+                 return false;
+            }
+            
+            @Override
+            protected void renderWidget(DrawContext context, int mouseX, int mouseY, float delta) {
+                context.fill(getX(), getY(), getX() + getWidth(), getY() + getHeight(), 0x20000000);
+                
+                int borderColor = isHovered() ? 0xFFFFFFFF : 0xFFA0A0A0;
+                int x = getX(); int y = getY(); int w = getWidth(); int h = getHeight();
+                context.fill(x, y, x + w, y + 1, borderColor); 
+                context.fill(x, y + h - 1, x + w, y + h, borderColor); 
+                context.fill(x, y, x + 1, y + h, borderColor); 
+                context.fill(x + w - 1, y, x + w, y + h, borderColor); 
+                
+                context.drawCenteredTextWithShadow(MinecraftClient.getInstance().textRenderer, getMessage(), getX() + getWidth() / 2, getY() + (getHeight() - 8) / 2, 0xFFFFFFFF);
+            }
+            
+            @Override
+            protected void appendClickableNarrations(NarrationMessageBuilder builder) {
+                this.appendDefaultNarrations(builder);
+            }
+            
+        @Override
+        public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+             if (isBinding()) {
+                if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
+                    keyBinding.setBoundKey(InputUtil.UNKNOWN_KEY);
+                } else {
+                    keyBinding.setBoundKey(InputUtil.Type.KEYSYM.createFromCode(keyCode));
+                }
+                finishBinding();
+                return true;
+            }
+            return false;
+        }
+        }
+
+        private boolean binding = false;
+        
+        public KeybindEntry(String keyName, KeyBinding keyBinding) {
+            this.label = Text.translatable(keyName);
+            this.keyBinding = keyBinding;
+            
+            this.button = new BindingButton(0, 0, 100, 20, net.minecraft.text.Text.literal("BIND"), () -> {
+                setBinding(true);
+            });
+            updateMessage();
+        }
+        
+        private void setBinding(boolean val) {
+            this.binding = val;
+            if (MinecraftClient.getInstance().currentScreen instanceof DamageConfigScreen s) {
+                s.setBinding(val);
+            }
+            updateMessage();
+        }
+        
+        private boolean isBinding() { return binding; }
+        
+        private void finishBinding() {
+            setBinding(false);
+            MinecraftClient.getInstance().options.write();
+            KeyBinding.updateKeysByCode();
+        }
+        
+        public void bindMouse(int button) {
+            keyBinding.setBoundKey(InputUtil.Type.MOUSE.createFromCode(button));
+            finishBinding();
+        }
+        
+        private void updateMessage() {
+            Text text;
+            KeyBinding conflict = null;
+            
+            if (binding) {
+                MutableText boundText = keyBinding.isUnbound() 
+                    ? Text.translatable("key.damage_engine.not_bound") 
+                    : keyBinding.getBoundKeyLocalizedText().copy();
+                text = Text.literal("> ").withColor(0xFFFFFF55).append(boundText.formatted(Formatting.UNDERLINE).withColor(0xFFFFFFFF)).append(Text.literal(" <").withColor(0xFFFFFF55));
+            } else {
+                if (keyBinding.isUnbound()) {
+                    text = Text.translatable("key.damage_engine.not_bound").withColor(0xFFFFFFFF);
+                } else {
+                    MutableText keyText = keyBinding.getBoundKeyLocalizedText().copy();
+                    
+                    for (KeyBinding kb : MinecraftClient.getInstance().options.allKeys) {
+                        if (kb != keyBinding && kb.equals(keyBinding)) {
+                            conflict = kb;
+                            break;
+                        }
+                    }
+                    
+                    if (conflict != null) {
+                        text = Text.literal("[ ").withColor(0xFFFFFF55).append(keyText.withColor(0xFFFFFFFF)).append(Text.literal(" ]").withColor(0xFFFFFF55));
+                    } else {
+                        text = keyText;
+                    }
+                }
+            }
+            
+            button.setMessage(text);
+            
+            if (conflict != null) {
+                Text tooltipText = Text.translatable("text.damage-engine.key_conflict");
+                button.setTooltip(Tooltip.of(tooltipText));
+            } else {
+                button.setTooltip(null);
+            }
+        }
+        
+        @Override
+        public void renderContent(DrawContext context, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+            context.drawTextWithShadow(MinecraftClient.getInstance().textRenderer, label, x, y + 8, 0xFFFFFFFF);
+            
+            button.setX(x + entryWidth - 110);
+            button.setY(y + 2);
+            button.setWidth(100); 
+            button.setFocused(false);
+            
+            button.render(context, mouseX, mouseY, tickDelta);
+        }
+        
+        @Override public List<? extends Element> children() { return Collections.singletonList(button); }
+        @Override public List<? extends Selectable> selectableChildren() { return Collections.singletonList(button); }
+    }
+    
+    private static class WeightEntry extends OptionEntry {
+        private final TextFieldWidget input;
+        private final Text label;
+        private final Text hint;
+        private final MinecraftClient client = MinecraftClient.getInstance();
+        private final float[] valueRef;
+        
+        public WeightEntry(String key, float current, Consumer<Float> onChange, String hintKey) {
+            this.label = Text.translatable(key);
+            this.hint = hintKey != null ? Text.translatable(hintKey).withColor(0xFFAAAAAA) : null;
+            this.valueRef = new float[]{current};
+            this.input = new TextFieldWidget(client.textRenderer, 0, 0, 50, 20, Text.empty());
+            this.input.setDrawsBackground(false);
+            this.input.setText(formatValue(current));
+            this.input.setChangedListener(s -> {
+                try {
+                    float v = Float.parseFloat(s);
+                    valueRef[0] = v;
+                    onChange.accept(v);
+                } catch(Exception ignored){}
+            });
+        }
+        
+        private static String formatValue(float v) {
+            if (v == (int)v) return String.valueOf((int)v);
+            return String.format("%.1f", v);
+        }
+        
+        @Override
+        public void renderContent(DrawContext context, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+            context.drawTextWithShadow(client.textRenderer, label, x, y + 8, 0xFFFFFFFF);
+            if (hint != null) {
+                int lw = client.textRenderer.getWidth(label);
+                context.drawTextWithShadow(client.textRenderer, hint, x + lw + 5, y + 8, 0xFFAAAAAA);
+            }
+            int boxW = 50;
+            int boxX = x + entryWidth - boxW - 10;
+            int boxY = y + 2;
+            context.fill(boxX, boxY, boxX + boxW, boxY + 18, 0x20000000);
+            int bc = (input.isFocused() || input.isMouseOver(mouseX, mouseY)) ? 0xFFFFFFFF : 0xFFA0A0A0;
+            context.fill(boxX, boxY, boxX + boxW, boxY + 1, bc);
+            context.fill(boxX, boxY + 17, boxX + boxW, boxY + 18, bc);
+            context.fill(boxX, boxY, boxX + 1, boxY + 18, bc);
+            context.fill(boxX + boxW - 1, boxY, boxX + boxW, boxY + 18, bc);
+            input.setX(boxX + 3);
+            input.setY(boxY + 4);
+            input.setWidth(boxW - 6);
+            input.setHeight(12);
+            input.render(context, mouseX, mouseY, tickDelta);
+        }
+        @Override public List<? extends Element> children() { return Collections.singletonList(input); }
+        @Override public List<? extends Selectable> selectableChildren() { return Collections.singletonList(input); }
+    }
+    
+    private static class RatingGradeEntry extends OptionEntry {
+        private final TextFieldWidget scoreField;
+        private final TextFieldWidget textField;
+        private final PlainTextButton delBtn;
+        private final MinecraftClient client = MinecraftClient.getInstance();
+        
+        public RatingGradeEntry(DamageEngineConfig.RatingGrade g, Runnable onDelete) {
+            this.scoreField = new TextFieldWidget(client.textRenderer, 0, 0, 60, 20, Text.empty());
+            this.scoreField.setDrawsBackground(false);
+            this.scoreField.setText(String.format("%.0f", g.minScore));
+            this.scoreField.setChangedListener(s -> {
+                try { g.minScore = Float.parseFloat(s); } catch(Exception ignored){}
+            });
+            
+            this.textField = new TextFieldWidget(client.textRenderer, 0, 0, 60, 20, Text.empty());
+            this.textField.setDrawsBackground(false);
+            this.textField.setMaxLength(4);
+            this.textField.setText(g.text);
+            this.textField.setChangedListener(s -> {
+                g.text = s;
+            });
+            
+            this.delBtn = new PlainTextButton(0, 0, 20, 20, Text.literal("-"), onDelete, 0xFFFFFFFF, 0xFFFBFB54);
+        }
+        
+        @Override
+        public void renderContent(DrawContext context, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+            int rightX = x + entryWidth;
+            int boxW = 60;
+            int boxH = 20;
+            int boxY = y + (entryHeight - boxH) / 2;
+            
+            delBtn.setX(rightX - 25);
+            delBtn.setY(boxY);
+            delBtn.setWidth(20);
+            delBtn.setForceHover(hovered);
+            
+            int textBoxX = rightX - 25 - 3 - boxW;
+            
+            textField.setX(textBoxX + 4);
+            textField.setY(boxY + 5);
+            textField.setWidth(boxW - 8);
+            textField.setHeight(12);
+            
+            int scoreBoxX = textBoxX - 3 - boxW;
+            
+            scoreField.setX(scoreBoxX + 4);
+            scoreField.setY(boxY + 5);
+            scoreField.setWidth(boxW - 8);
+            scoreField.setHeight(12);
+            
+            Text label = Text.literal("≥");
+            context.drawTextWithShadow(client.textRenderer, label, x + 10, y + 8, 0xFFFFFFFF);
+            
+            drawBox(context, scoreBoxX, boxY, boxW, boxH, scoreField, mouseX, mouseY);
+            drawBox(context, textBoxX, boxY, boxW, boxH, textField, mouseX, mouseY);
+            
+            scoreField.render(context, mouseX, mouseY, tickDelta);
+            textField.render(context, mouseX, mouseY, tickDelta);
+            delBtn.render(context, mouseX, mouseY, tickDelta);
+        }
+        
+        private void drawBox(DrawContext context, int bx, int by, int bw, int bh, TextFieldWidget field, int mouseX, int mouseY) {
+            context.fill(bx, by, bx + bw, by + bh, 0x20000000);
+            int bc = (field.isFocused() || field.isMouseOver(mouseX, mouseY)) ? 0xFFFFFFFF : 0xFFA0A0A0;
+            context.fill(bx, by, bx + bw, by + 1, bc);
+            context.fill(bx, by + bh - 1, bx + bw, by + bh, bc);
+            context.fill(bx, by, bx + 1, by + bh, bc);
+            context.fill(bx + bw - 1, by, bx + bw, by + bh, bc);
+        }
+        
+        @Override
+        public List<? extends Element> children() {
+            return java.util.Arrays.asList(scoreField, textField, delBtn);
+        }
+        @Override
+        public List<? extends Selectable> selectableChildren() {
+            return java.util.Arrays.asList(scoreField, textField, delBtn);
+        }
+    }
+    
+    private static class RatingGradeAppearanceEntry extends OptionEntry {
+        private final DamageEngineConfig.RatingGrade grade;
+        private final DamageEngineConfig config;
+        private final TextFieldWidget colField;
+        private final StyledButton selectImageBtn;
+        private final MinecraftClient client = MinecraftClient.getInstance();
+        private int currentColor;
+        
+        public RatingGradeAppearanceEntry(DamageEngineConfig.RatingGrade g, DamageEngineConfig config) {
+            this.grade = g;
+            this.config = config;
+            this.currentColor = g.color;
+            
+            this.colField = new TextFieldWidget(client.textRenderer, 0, 0, 75, 20, Text.empty());
+            this.colField.setDrawsBackground(false);
+            this.colField.setMaxLength(7);
+            this.colField.setText("#" + String.format("%06X", g.color & 0xFFFFFF));
+            this.colField.setChangedListener(s -> {
+                try {
+                    String hex = s.startsWith("#") ? s.substring(1) : s;
+                    int v = (int)Long.parseLong(hex, 16);
+                    g.color = v;
+                    this.currentColor = v;
+                } catch(Exception ignored){}
+            });
+            
+            this.selectImageBtn = new StyledButton(0, 0, 100, 20, Text.translatable("option.damage-engine.select_image"), this::onSelectImage);
+            
+            java.io.File configDir = new java.io.File(client.runDirectory, "config/damage-engine/images");
+            if (!configDir.exists()) {
+                configDir.mkdirs();
+            }
+        }
+        
+        private void onSelectImage() {
+            try {
+                java.io.File imagesDir = new java.io.File(client.runDirectory, "config/damage-engine/images");
+                if (!imagesDir.exists()) {
+                    imagesDir.mkdirs();
+                }
+                
+                String fileName = "rating_" + grade.index + ".png";
+                java.io.File destFile = new java.io.File(imagesDir, fileName);
+                
+                if (System.getProperty("os.name").toLowerCase().startsWith("windows")) {
+                    ProcessBuilder pb = new ProcessBuilder("powershell.exe", "-Command", 
+                        "[System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms') | Out-Null;" +
+                        "$dlg = New-Object System.Windows.Forms.OpenFileDialog;" +
+                        "$dlg.Filter = 'PNG Images (*.png)|*.png|All Files (*.*)|*.*';" +
+                        "$dlg.Title = '选择评价图片';" +
+                        "$dlg.ShowDialog() | Out-Null;" +
+                        "$dlg.FileName");
+                    pb.redirectErrorStream(true);
+                    Process process = pb.start();
+                    
+                    java.io.BufferedReader reader = new java.io.BufferedReader(
+                        new java.io.InputStreamReader(process.getInputStream(), java.nio.charset.StandardCharsets.UTF_8));
+                    String selectedPath = reader.readLine();
+                    process.waitFor();
+                    
+                    if (selectedPath != null && !selectedPath.trim().isEmpty()) {
+                        java.io.File selectedFile = new java.io.File(selectedPath.trim());
+                        if (selectedFile.exists()) {
+                            java.nio.file.Files.copy(selectedFile.toPath(), destFile.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                            grade.imagePath = "rating_" + grade.index;
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+        
+        @Override
+        public void renderContent(DrawContext context, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+            int rightX = x + entryWidth;
+            int boxY = y + 2;
+            
+            if (config.ratingUseImages) {
+                selectImageBtn.setX(rightX - 110);
+                selectImageBtn.setY(boxY);
+                selectImageBtn.setWidth(100);
+                selectImageBtn.visible = true;
+                
+                // 显示路径文本（只读，支持滚动）
+                String pathText = grade.imagePath != null && !grade.imagePath.isEmpty() ? grade.imagePath : "未设置";
+                
+                // 只显示最后一段路径（文件名）
+                if (pathText.contains("/")) {
+                    pathText = pathText.substring(pathText.lastIndexOf("/") + 1);
+                }
+                
+                int maxWidth = 100;
+                int textWidth = client.textRenderer.getWidth(pathText);
+                
+                // 如果还是太长，截取并加省略号
+                if (textWidth > maxWidth) {
+                    while (textWidth > maxWidth - 20 && pathText.length() > 4) {
+                        pathText = pathText.substring(0, pathText.length() - 1);
+                        textWidth = client.textRenderer.getWidth(pathText + "...");
+                    }
+                    pathText = pathText + "...";
+                }
+                
+                int pathX = rightX - 110 - 5 - client.textRenderer.getWidth(pathText);
+                if (pathX < x + 10) pathX = x + 10;
+                
+                Text label = Text.literal(grade.text);
+                context.drawTextWithShadow(client.textRenderer, label, x + 10, y + 8, 0xFFFFFFFF);
+                
+                context.drawTextWithShadow(client.textRenderer, Text.literal(pathText), pathX, y + 8, 0xFFFFFFFF);
+                selectImageBtn.render(context, mouseX, mouseY, tickDelta);
+            } else {
+                selectImageBtn.visible = false;
+                
+                int startX = x + entryWidth - 110;
+                int previewSize = 17;
+                int previewX = startX + 80;
+                int previewY = boxY + 1;
+                
+                int colBoxW = 75;
+                int colBoxX = startX;
+                
+                colField.setX(colBoxX + 4);
+                colField.setY(boxY + 6);
+                colField.setWidth(colBoxW - 8);
+                colField.setHeight(12);
+                colField.visible = true;
+                colField.setFocused(false);
+                
+                Text label = Text.literal(grade.text);
+                context.drawTextWithShadow(client.textRenderer, label, x + 10, y + 8, 0xFFFFFFFF);
+                
+                drawBox(context, colBoxX, boxY, colBoxW, 20, colField, mouseX, mouseY);
+                colField.render(context, mouseX, mouseY, tickDelta);
+                
+                context.fill(previewX - 1, previewY - 1, previewX + previewSize + 1, previewY + previewSize + 1, 0xFFFFFFFF);
+                context.fill(previewX, previewY, previewX + previewSize, previewY + previewSize, 0xFF000000 | (currentColor & 0xFFFFFF));
+            }
+        }
+        
+        private void drawBox(DrawContext context, int bx, int by, int bw, int bh, TextFieldWidget field, int mouseX, int mouseY) {
+            context.fill(bx, by, bx + bw, by + bh, 0x20000000);
+            int bc = (field.isFocused() || field.isMouseOver(mouseX, mouseY)) ? 0xFFFFFFFF : 0xFFA0A0A0;
+            context.fill(bx, by, bx + bw, by + 1, bc);
+            context.fill(bx, by + bh - 1, bx + bw, by + bh, bc);
+            context.fill(bx, by, bx + 1, by + bh, bc);
+            context.fill(bx + bw - 1, by, bx + bw, by + bh, bc);
+        }
+        
+        @Override
+        public List<? extends Element> children() {
+            if (config.ratingUseImages) {
+                return java.util.Arrays.asList(selectImageBtn);
+            } else {
+                return java.util.Arrays.asList(colField);
+            }
+        }
+        @Override
+        public List<? extends Selectable> selectableChildren() {
+            if (config.ratingUseImages) {
+                return java.util.Arrays.asList(selectImageBtn);
+            } else {
+                return java.util.Arrays.asList(colField);
+            }
+        }
+    }
+}

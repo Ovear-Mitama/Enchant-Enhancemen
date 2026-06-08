@@ -1,38 +1,41 @@
 {
 	"schemaVersion": 1,
-	"id": "enchant-enhancement",
+	"id": "damage-engine",
 	"version": "${version}",
-	"name": "Enchant Enhancement",
-	"description": "提升附魔等级上限，修改原版附魔兼容性和优化。",
+	"name": "Damage Engine",
+	"description": "Display damage info on the UI.",
 	"authors": [
 		"mitama"
 	],
 	"contact": {
-		"homepage": "https://modrinth.com/mod/enchant-enhancemen",
-		"sources": "https://github.com/Ovear-Mitama/Enchant-Enhancemen",
-		"issues": "https://github.com/Ovear-Mitama/Enchant-Enhancemen/issues"
+		"homepage": "https://modrinth.com/mod/damage-engine",
+		"sources": "https://github.com/Ovear-Mitama/Damage-Engine",
+		"issues": "https://github.com/Ovear-Mitama/Damage-Engine/issues"
 	},
-	"license": "Apache-2.0",
-	"icon": "assets/enchant-enhancement/icon.png",
+	"license": "MIT",
+	"icon": "assets/damage-engine/icon.png",
 	"environment": "*",
 	"entrypoints": {
 		"main": [
-			"enchant.enhancement.EnchantEnhancement"
+			"damage.engine.DamageEngine"
 		],
 		"client": [
-			"enchant.enhancement.EnchantEnhancementClient",
-			"enchant.enhancement.client.KeyBindings"
+			"damage.engine.DamageEngineClient"
 		],
 		"modmenu": [
-			"enchant.enhancement.integration.ModMenuIntegration"
+			"damage.engine.compat.ModMenuIntegration"
 		]
 	},
 	"mixins": [
-		"enchant-enhancement.mixins.json"
+		"damage-engine.mixins.json",
+		{
+			"config": "damage-engine.client.mixins.json",
+			"environment": "client"
+		}
 	],
 	"depends": {
-		"fabricloader": ">=0.16.10",
-		"minecraft": ">=1.21 <=1.21.3",
+		"fabricloader": ">=0.18.4",
+		"minecraft": ">=1.21 <=1.21.1",
 		"java": ">=21",
 		"fabric-api": "*"
 	}
