@@ -56,53 +56,63 @@ public class EnchantmentConfig {
     }
     
     public static void save() {
-        // 只有在服务端或未同步配置的情况下才保存
-        if (isServer || !isConfigSynced) {
-            try {
-                ensureConfigDir();
-                Map<String, Object> configMap = new HashMap<>();
-                Map<String, Object> generalConfig = new HashMap<>();
-                generalConfig.put("mergeHighEnchantments", mergeHighEnchantments);
-                generalConfig.put("lootHighEnchantments", lootHighEnchantments);
-                generalConfig.put("creatureHighEnchantmentArmor", creatureHighEnchantmentArmor);
-                generalConfig.put("armorProtectionCompatibility", armorProtectionCompatibility);
-                generalConfig.put("weaponEnchantmentCompatibility", weaponEnchantmentCompatibility);
-                generalConfig.put("axeEnchantmentExpansion", axeEnchantmentExpansion);
-                generalConfig.put("bowLootingEnchantment", bowLootingEnchantment);
-                generalConfig.put("tridentEnchantmentExpansion", tridentEnchantmentExpansion);
-                generalConfig.put("infinityWithoutArrow", infinityWithoutArrow);
-                configMap.put("general", generalConfig);
-                configMap.put("enchantments", MAX_LEVELS);
-                
-                try (BufferedWriter writer = Files.newBufferedWriter(CONFIG_FILE)) {
-                    GSON.toJson(configMap, writer);
-                }
-                
-                // 如果是服务端（开服的客户端），保存后向所有在线玩家同步配置
-                if (isServer) {
-                    syncConfigToAllPlayers(generalConfig, MAX_LEVELS);
-                }
-            } catch (IOException e) {
+        try {
+            ensureConfigDir();
+            Map<String, Object> configMap = new HashMap<>();
+            Map<String, Object> generalConfig = new HashMap<>();
+            generalConfig.put("mergeHighEnchantments", mergeHighEnchantments);
+            generalConfig.put("lootHighEnchantments", lootHighEnchantments);
+            generalConfig.put("creatureHighEnchantmentArmor", creatureHighEnchantmentArmor);
+            generalConfig.put("armorProtectionCompatibility", armorProtectionCompatibility);
+            generalConfig.put("weaponEnchantmentCompatibility", weaponEnchantmentCompatibility);
+            generalConfig.put("axeEnchantmentExpansion", axeEnchantmentExpansion);
+            generalConfig.put("bowLootingEnchantment", bowLootingEnchantment);
+            generalConfig.put("tridentEnchantmentExpansion", tridentEnchantmentExpansion);
+            generalConfig.put("infinityWithoutArrow", infinityWithoutArrow);
+            configMap.put("general", generalConfig);
+            configMap.put("enchantments", MAX_LEVELS);
+            
+            try (BufferedWriter writer = Files.newBufferedWriter(CONFIG_FILE)) {
+                GSON.toJson(configMap, writer);
             }
+            
+            // 如果是服务端（开服的客户端），保存后向所有在线玩家同步配置
+            if (isServer) {
+                syncConfigToAllPlayers(generalConfig, MAX_LEVELS);
+            }
+        } catch (IOException e) {
+        }
+    }
+    
+    // 直接保存指定的配置到文件（不修改内存中的配置值）
+    public static void saveConfigToFile(Map<String, Object> generalConfig, Map<String, Integer> enchantmentsConfig) {
+        try {
+            ensureConfigDir();
+            Map<String, Object> configMap = new HashMap<>();
+            configMap.put("general", generalConfig);
+            configMap.put("enchantments", enchantmentsConfig);
+            
+            try (BufferedWriter writer = Files.newBufferedWriter(CONFIG_FILE)) {
+                GSON.toJson(configMap, writer);
+            }
+        } catch (IOException e) {
         }
     }
     
     // 向所有在线玩家同步配置
     private static void syncConfigToAllPlayers(Map<String, Object> generalConfig, Map<String, Integer> enchantmentsConfig) {
-        // 由于在静态上下文中获取服务器实例比较复杂，这里暂时注释掉
-        // 实际使用中，配置同步主要通过玩家加入事件触发
+        // 通过 ServerPlayerJoinListener 向所有在线玩家推送配置
+        enchant.enhancement.event.ServerPlayerJoinListener.syncToAllPlayers(generalConfig, enchantmentsConfig);
     }
     
     public static void load() {
-        // 只有在服务端或未同步配置的情况下才加载
-        if (isServer || !isConfigSynced) {
-            try {
-                ensureConfigDir();
-            } catch (IOException e) {
-            }
-            
-            if (Files.exists(CONFIG_FILE)) {
-                try (BufferedReader reader = Files.newBufferedReader(CONFIG_FILE)) {
+        try {
+            ensureConfigDir();
+        } catch (IOException e) {
+        }
+        
+        if (Files.exists(CONFIG_FILE)) {
+            try (BufferedReader reader = Files.newBufferedReader(CONFIG_FILE)) {
                     // 解析JSON为Map
                     Map<String, Object> configMap = GSON.fromJson(reader, new TypeToken<Map<String, Object>>(){}.getType());
                     if (configMap != null) {
@@ -164,7 +174,6 @@ public class EnchantmentConfig {
             }
             
             loaded = true;
-        }
     }
     
     private static boolean getBoolean(Map<?, ?> map, String key, boolean defaultValue) {
@@ -288,6 +297,22 @@ public class EnchantmentConfig {
         return result;
     }
     
+    // 获取默认等级（不触发load）
+    public static Map<Identifier, Integer> getDefaultLevels() {
+        if (DEFAULT_LEVELS.isEmpty()) {
+            initializeDefaults();
+        }
+        Map<Identifier, Integer> result = new HashMap<>();
+        for (Map.Entry<String, Integer> entry : DEFAULT_LEVELS.entrySet()) {
+            try {
+                Identifier id = Identifier.of(entry.getKey());
+                result.put(id, entry.getValue());
+            } catch (Exception e) {
+            }
+        }
+        return result;
+    }
+    
     // 常规配置的getter/setter方法
     public static boolean isMergeHighEnchantments() {
         loadIfNeeded();
@@ -402,6 +427,9 @@ public class EnchantmentConfig {
     
     // 同步配置
     public static void syncConfig(Map<String, Object> generalConfig, Map<String, Integer> enchantmentsConfig) {
+        // 主机不需要接收自己的同步包
+        if (isServer) return;
+        
         if (generalConfig != null) {
             mergeHighEnchantments = getBoolean(generalConfig, "mergeHighEnchantments", true);
             lootHighEnchantments = getBoolean(generalConfig, "lootHighEnchantments", true);

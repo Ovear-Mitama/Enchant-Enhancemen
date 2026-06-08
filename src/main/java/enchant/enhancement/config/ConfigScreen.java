@@ -9,6 +9,7 @@ import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -30,6 +31,18 @@ public class ConfigScreen extends Screen {
     private ButtonWidget generalTabButton;
     private ButtonWidget customTabButton;
     private boolean canModify = true;
+    private boolean isReadOnly = false;
+    
+    // 本地UI状态追踪 — 只读模式下用于保存到文件而不影响内存中的EnchantmentConfig
+    private boolean uiMergeHighEnchantments;
+    private boolean uiLootHighEnchantments;
+    private boolean uiCreatureHighEnchantmentArmor;
+    private boolean uiArmorProtectionCompatibility;
+    private boolean uiWeaponEnchantmentCompatibility;
+    private boolean uiAxeEnchantmentExpansion;
+    private boolean uiBowLootingEnchantment;
+    private boolean uiTridentEnchantmentExpansion;
+    private boolean uiInfinityWithoutArrow;
     
     // 常规标签页组件状态
     private int resetButtonState = 0; // 0=重置, 1=确认?, 2=已重置!
@@ -51,6 +64,17 @@ public class ConfigScreen extends Screen {
         super(Text.translatable("config.enchant_enhancement.title"));
         this.parent = parent;
         this.enchantmentLevels = EnchantmentConfig.getAllLevels();
+        
+        // 初始化本地UI状态
+        this.uiMergeHighEnchantments = EnchantmentConfig.isMergeHighEnchantments();
+        this.uiLootHighEnchantments = EnchantmentConfig.isLootHighEnchantments();
+        this.uiCreatureHighEnchantmentArmor = EnchantmentConfig.isCreatureHighEnchantmentArmor();
+        this.uiArmorProtectionCompatibility = EnchantmentConfig.isArmorProtectionCompatibility();
+        this.uiWeaponEnchantmentCompatibility = EnchantmentConfig.isWeaponEnchantmentCompatibility();
+        this.uiAxeEnchantmentExpansion = EnchantmentConfig.isAxeEnchantmentExpansion();
+        this.uiBowLootingEnchantment = EnchantmentConfig.isBowLootingEnchantment();
+        this.uiTridentEnchantmentExpansion = EnchantmentConfig.isTridentEnchantmentExpansion();
+        this.uiInfinityWithoutArrow = EnchantmentConfig.isInfinityWithoutArrow();
         
         // 初始化所有附魔条目，用于保存配置
         for (Map.Entry<Identifier, Integer> entry : enchantmentLevels.entrySet()) {
@@ -102,46 +126,58 @@ public class ConfigScreen extends Screen {
     
     private void handleResetButton() {
         if (resetButtonState == 0) {
-            // 第一步：显示"确认?"
             resetButtonState = 1;
-            // 刷新列表以更新按钮文本
             updateListContent();
         } else if (resetButtonState == 1) {
-            // 第二步：执行重置并显示"已重置!"
             resetButtonState = 2;
             resetButtonTime = System.currentTimeMillis();
             
-            // 执行重置操作
-            EnchantmentConfig.setMergeHighEnchantments(true);
-            EnchantmentConfig.setLootHighEnchantments(true);
-            EnchantmentConfig.setCreatureHighEnchantmentArmor(false);
-            EnchantmentConfig.setArmorProtectionCompatibility(true);
-            EnchantmentConfig.setWeaponEnchantmentCompatibility(true);
-            EnchantmentConfig.setAxeEnchantmentExpansion(false);
-            EnchantmentConfig.setBowLootingEnchantment(true);
-            EnchantmentConfig.setTridentEnchantmentExpansion(true);
-            EnchantmentConfig.setInfinityWithoutArrow(true);
+            // 重置UI状态
+            uiMergeHighEnchantments = true;
+            uiLootHighEnchantments = true;
+            uiCreatureHighEnchantmentArmor = false;
+            uiArmorProtectionCompatibility = true;
+            uiWeaponEnchantmentCompatibility = true;
+            uiAxeEnchantmentExpansion = false;
+            uiBowLootingEnchantment = true;
+            uiTridentEnchantmentExpansion = true;
+            uiInfinityWithoutArrow = true;
             
-            // 重置所有附魔等级为默认值
-            EnchantmentConfig.resetToDefaults();
-            
-            // 重新从配置获取所有等级
-            ConfigScreen.this.enchantmentLevels.clear();
-            ConfigScreen.this.enchantmentLevels.putAll(EnchantmentConfig.getAllLevels());
+            if (!isReadOnly) {
+                // 正常模式：更新EnchantmentConfig
+                EnchantmentConfig.setMergeHighEnchantments(true);
+                EnchantmentConfig.setLootHighEnchantments(true);
+                EnchantmentConfig.setCreatureHighEnchantmentArmor(false);
+                EnchantmentConfig.setArmorProtectionCompatibility(true);
+                EnchantmentConfig.setWeaponEnchantmentCompatibility(true);
+                EnchantmentConfig.setAxeEnchantmentExpansion(false);
+                EnchantmentConfig.setBowLootingEnchantment(true);
+                EnchantmentConfig.setTridentEnchantmentExpansion(true);
+                EnchantmentConfig.setInfinityWithoutArrow(true);
+                
+                // 重置所有附魔等级为默认值
+                EnchantmentConfig.resetToDefaults();
+                
+                // 从配置获取所有等级（因为resetToDefaults修改了EnchantmentConfig）
+                ConfigScreen.this.enchantmentLevels.clear();
+                ConfigScreen.this.enchantmentLevels.putAll(EnchantmentConfig.getAllLevels());
+                
+                EnchantmentConfig.save();
+            } else {
+                // 只读模式：仅重置UI本地状态，不修改EnchantmentConfig
+                ConfigScreen.this.enchantmentLevels.clear();
+                ConfigScreen.this.enchantmentLevels.putAll(EnchantmentConfig.getDefaultLevels());
+            }
             
             // 重新初始化附魔分组
             ConfigScreen.this.initializeGroups();
             
-            // 重新初始化所有附魔条目，用于保存配置
+            // 重新初始化所有附魔条目
             ConfigScreen.this.allEntries.clear();
             for (Map.Entry<Identifier, Integer> entry : ConfigScreen.this.enchantmentLevels.entrySet()) {
                 ConfigScreen.this.allEntries.add(new EnchantmentEntry(entry.getKey(), entry.getValue()));
             }
             
-            // 保存所有配置更改到文件
-            EnchantmentConfig.save();
-            
-            // 刷新列表以更新UI组件
             updateListContent();
         }
     }
@@ -229,9 +265,7 @@ public class ConfigScreen extends Screen {
         ButtonWidget saveButton = ButtonWidget.builder(
             Text.translatable("config.enchant_enhancement.button.save_exit").withColor(0xFFB1EAC2),
             button -> {
-                if (canModify) {
-                    saveChanges();
-                }
+                saveChanges();
             }
         ).dimensions(saveX, saveY, buttonWidth, buttonHeight).build();
         addDrawableChild(saveButton);
@@ -307,8 +341,9 @@ public class ConfigScreen extends Screen {
         boolean isConfigSynced = EnchantmentConfig.isConfigSynced();
         // 检查是否是多人游戏（通过检查是否连接到服务器）
         boolean isMultiplayer = net.minecraft.client.MinecraftClient.getInstance().getCurrentServerEntry() != null;
-        // 综合判断：如果已同步配置或处于多人游戏，禁止修改
+        // 综合判断：如果已同步配置或处于多人游戏，UI可交互但修改不生效
         this.canModify = !isConfigSynced && !isMultiplayer;
+        this.isReadOnly = isConfigSynced || isMultiplayer;
         
         if (currentTab == Tab.GENERAL) {
             // 常规标签页：添加常规设置条目，支持搜索过滤
@@ -318,9 +353,10 @@ public class ConfigScreen extends Screen {
             if (query.isEmpty() || "战利品中生成高级附魔书".toLowerCase().contains(query)) {
                 listWidget.addListEntry(new GeneralSettingEntry(
                     Text.translatable("config.enchant_enhancement.setting.loot_high_enchantments"),
-                    EnchantmentConfig.isLootHighEnchantments(),
+                    uiLootHighEnchantments,
                     value -> {
-                        if (canModify) {
+                        uiLootHighEnchantments = value;
+                        if (!isReadOnly) {
                             EnchantmentConfig.setLootHighEnchantments(value);
                         }
                         return getToggleText(value);
@@ -331,9 +367,10 @@ public class ConfigScreen extends Screen {
             if (query.isEmpty() || "生物穿戴高级附魔盔甲".toLowerCase().contains(query)) {
                 listWidget.addListEntry(new GeneralSettingEntry(
                     Text.translatable("config.enchant_enhancement.setting.creature_high_enchantment_armor"),
-                    EnchantmentConfig.isCreatureHighEnchantmentArmor(),
+                    uiCreatureHighEnchantmentArmor,
                     value -> {
-                        if (canModify) {
+                        uiCreatureHighEnchantmentArmor = value;
+                        if (!isReadOnly) {
                             EnchantmentConfig.setCreatureHighEnchantmentArmor(value);
                         }
                         return getToggleText(value);
@@ -345,9 +382,10 @@ public class ConfigScreen extends Screen {
             if (query.isEmpty() || "合并突破附魔等级上限".toLowerCase().contains(query)) {
                 listWidget.addListEntry(new GeneralSettingEntry(
                     Text.translatable("config.enchant_enhancement.setting.merge_high_enchantments"),
-                    EnchantmentConfig.isMergeHighEnchantments(),
+                    uiMergeHighEnchantments,
                     value -> {
-                        if (canModify) {
+                        uiMergeHighEnchantments = value;
+                        if (!isReadOnly) {
                             EnchantmentConfig.setMergeHighEnchantments(value);
                         }
                         return getToggleText(value);
@@ -362,9 +400,10 @@ public class ConfigScreen extends Screen {
             if (query.isEmpty() || "盔甲保护兼容".toLowerCase().contains(query)) {
                 listWidget.addListEntry(new GeneralSettingEntry(
                     Text.translatable("config.enchant_enhancement.setting.armor_protection_compatibility"),
-                    EnchantmentConfig.isArmorProtectionCompatibility(),
+                    uiArmorProtectionCompatibility,
                     value -> {
-                        if (canModify) {
+                        uiArmorProtectionCompatibility = value;
+                        if (!isReadOnly) {
                             EnchantmentConfig.setArmorProtectionCompatibility(value);
                         }
                         return getToggleText(value);
@@ -377,9 +416,10 @@ public class ConfigScreen extends Screen {
             if (query.isEmpty() || "武器附魔兼容".toLowerCase().contains(query)) {
                 listWidget.addListEntry(new GeneralSettingEntry(
                     Text.translatable("config.enchant_enhancement.setting.weapon_enchantment_compatibility"),
-                    EnchantmentConfig.isWeaponEnchantmentCompatibility(),
+                    uiWeaponEnchantmentCompatibility,
                     value -> {
-                        if (canModify) {
+                        uiWeaponEnchantmentCompatibility = value;
+                        if (!isReadOnly) {
                             EnchantmentConfig.setWeaponEnchantmentCompatibility(value);
                         }
                         return getToggleText(value);
@@ -392,9 +432,10 @@ public class ConfigScreen extends Screen {
             if (query.isEmpty() || "三叉戟附魔拓展".toLowerCase().contains(query)) {
                 listWidget.addListEntry(new GeneralSettingEntry(
                     Text.translatable("config.enchant_enhancement.setting.trident_enchantment_expansion"),
-                    EnchantmentConfig.isTridentEnchantmentExpansion(),
+                    uiTridentEnchantmentExpansion,
                     value -> {
-                        if (canModify) {
+                        uiTridentEnchantmentExpansion = value;
+                        if (!isReadOnly) {
                             EnchantmentConfig.setTridentEnchantmentExpansion(value);
                         }
                         return getToggleText(value);
@@ -409,9 +450,10 @@ public class ConfigScreen extends Screen {
             if (query.isEmpty() || "斧头附魔拓展".toLowerCase().contains(query)) {
                 listWidget.addListEntry(new GeneralSettingEntry(
                     Text.translatable("config.enchant_enhancement.setting.axe_enchantment_expansion"),
-                    EnchantmentConfig.isAxeEnchantmentExpansion(),
+                    uiAxeEnchantmentExpansion,
                     value -> {
-                        if (canModify) {
+                        uiAxeEnchantmentExpansion = value;
+                        if (!isReadOnly) {
                             EnchantmentConfig.setAxeEnchantmentExpansion(value);
                         }
                         return getToggleText(value);
@@ -424,9 +466,10 @@ public class ConfigScreen extends Screen {
             if (query.isEmpty() || "弓附魔拓展".toLowerCase().contains(query) || "弓附魔兼容".toLowerCase().contains(query)) {
                 listWidget.addListEntry(new GeneralSettingEntry(
                     Text.translatable("config.enchant_enhancement.setting.bow_enchantment_expansion"),
-                    EnchantmentConfig.isBowLootingEnchantment(),
+                    uiBowLootingEnchantment,
                     value -> {
-                        if (canModify) {
+                        uiBowLootingEnchantment = value;
+                        if (!isReadOnly) {
                             EnchantmentConfig.setBowLootingEnchantment(value);
                         }
                         return getToggleText(value);
@@ -439,9 +482,10 @@ public class ConfigScreen extends Screen {
             if (query.isEmpty() || "无限附魔不需要一支箭".toLowerCase().contains(query)) {
                 listWidget.addListEntry(new GeneralSettingEntry(
                     Text.translatable("config.enchant_enhancement.setting.infinity_without_arrow"),
-                    EnchantmentConfig.isInfinityWithoutArrow(),
+                    uiInfinityWithoutArrow,
                     value -> {
-                        if (canModify) {
+                        uiInfinityWithoutArrow = value;
+                        if (!isReadOnly) {
                             EnchantmentConfig.setInfinityWithoutArrow(value);
                         }
                         return getToggleText(value);
@@ -450,8 +494,8 @@ public class ConfigScreen extends Screen {
                 ));
             }
             
-            // 只有在可以修改的情况下才显示重置按钮
-            if (canModify && (query.isEmpty() || "重置设置".toLowerCase().contains(query))) {
+            // 始终显示重置按钮
+            if (query.isEmpty() || "重置设置".toLowerCase().contains(query)) {
                 // 添加重置按钮条目
                 listWidget.addListEntry(new ResetButtonEntry());
             }
@@ -474,12 +518,12 @@ public class ConfigScreen extends Screen {
                         // 添加分组条目
                         listWidget.addListEntry(new GroupEntry(groupName, ids));
                         
-                        // 如果分组展开，添加该组的附魔条目
+                        // 如果分组展开，添加该组的附魔条目（缩进显示）
                         if (groupExpandedStates.getOrDefault(groupName, false)) {
                             for (Identifier enchantmentId : ids) {
                                 Integer level = enchantmentLevels.get(enchantmentId);
                                 if (level != null) {
-                                    listWidget.addListEntry(new EnchantmentEntry(enchantmentId, level, !canModify));
+                                    listWidget.addListEntry(new EnchantmentEntry(enchantmentId, level, !canModify, true));
                                 }
                             }
                         }
@@ -499,11 +543,8 @@ public class ConfigScreen extends Screen {
             
 
             
-            // 只有在未同步配置的情况下才显示恢复默认按钮
-            if (!isConfigSynced) {
-                // 添加恢复默认按钮条目
-                listWidget.addListEntry(new RestoreDefaultsEntry());
-            }
+            // 始终显示恢复默认按钮
+            listWidget.addListEntry(new RestoreDefaultsEntry());
         }
     }
     
@@ -520,13 +561,35 @@ public class ConfigScreen extends Screen {
 
     
     private void saveChanges() {
-        for (Map.Entry<Identifier, Integer> entry : enchantmentLevels.entrySet()) {
-            try {
-                EnchantmentConfig.setMaxLevel(entry.getKey(), entry.getValue());
-            } catch (Exception e) {
+        if (isReadOnly) {
+            // 只读模式：直接将UI状态保存到文件，不修改EnchantmentConfig内存值（游戏逻辑跟随服务器）
+            Map<String, Object> generalConfig = new HashMap<>();
+            generalConfig.put("mergeHighEnchantments", uiMergeHighEnchantments);
+            generalConfig.put("lootHighEnchantments", uiLootHighEnchantments);
+            generalConfig.put("creatureHighEnchantmentArmor", uiCreatureHighEnchantmentArmor);
+            generalConfig.put("armorProtectionCompatibility", uiArmorProtectionCompatibility);
+            generalConfig.put("weaponEnchantmentCompatibility", uiWeaponEnchantmentCompatibility);
+            generalConfig.put("axeEnchantmentExpansion", uiAxeEnchantmentExpansion);
+            generalConfig.put("bowLootingEnchantment", uiBowLootingEnchantment);
+            generalConfig.put("tridentEnchantmentExpansion", uiTridentEnchantmentExpansion);
+            generalConfig.put("infinityWithoutArrow", uiInfinityWithoutArrow);
+            
+            Map<String, Integer> enchantConfig = new HashMap<>();
+            for (Map.Entry<Identifier, Integer> entry : enchantmentLevels.entrySet()) {
+                enchantConfig.put(entry.getKey().toString(), entry.getValue());
             }
+            
+            EnchantmentConfig.saveConfigToFile(generalConfig, enchantConfig);
+        } else {
+            // 正常模式：更新EnchantmentConfig内存值并保存
+            for (Map.Entry<Identifier, Integer> entry : enchantmentLevels.entrySet()) {
+                try {
+                    EnchantmentConfig.setMaxLevel(entry.getKey(), entry.getValue());
+                } catch (Exception e) {
+                }
+            }
+            EnchantmentConfig.save();
         }
-        EnchantmentConfig.save();
         close();
     }
     
@@ -671,17 +734,23 @@ public class ConfigScreen extends Screen {
         private int level;
         private float hoverProgress = 0.0f;
         private boolean isDisabled = false;
+        private boolean isIndented = false;
 
         private boolean initialized = false;
         
         public EnchantmentEntry(Identifier enchantmentId, int initialLevel) {
-            this(enchantmentId, initialLevel, false);
+            this(enchantmentId, initialLevel, false, false);
         }
         
         public EnchantmentEntry(Identifier enchantmentId, int initialLevel, boolean isDisabled) {
+            this(enchantmentId, initialLevel, isDisabled, false);
+        }
+        
+        public EnchantmentEntry(Identifier enchantmentId, int initialLevel, boolean isDisabled, boolean isIndented) {
             this.enchantmentId = enchantmentId;
             this.level = initialLevel;
             this.isDisabled = isDisabled;
+            this.isIndented = isIndented;
 
         }
         
@@ -704,19 +773,22 @@ public class ConfigScreen extends Screen {
                 context.fill(x, y, x + entryWidth, y + entryHeight, color);
             }
             
-            // 渲染附魔名称
+            // 渲染附魔名称（缩进时向右偏移18px，颜色变灰）
             String displayName = getEnchantmentDisplayName(enchantmentId);
-            // 对于30像素高度的列表项，文本垂直居中位置调整为y + 11（字体高度9像素）
             int fontHeight = textRenderer.fontHeight; // 通常为9
-            int textY = y + Math.round((entryHeight - fontHeight) / 2f); // 使用浮点计算以正确居中
-            context.drawTextWithShadow(textRenderer, displayName, x + 10, textY, 0xFFFFFF);
+            int textY = y + Math.round((entryHeight - fontHeight) / 2f);
+            int nameX = x + 10 + (isIndented ? 18 : 0);
+            int nameColor = isIndented ? 0xFFAAAAAA : 0xFFFFFF;
+            context.drawTextWithShadow(textRenderer, displayName, nameX, textY, nameColor);
             
             // 创建或更新等级输入框
             if (!initialized) {
-                int fieldWidth = 78; // 内部宽度78，加上边框后总宽度80
-                int fieldHeight = 18; // 内部高度18，加上边框后总高度20
-                int fieldX = x + entryWidth - 80 - 15; // 总宽度80，右侧留15像素边距，确保完全可见
-                int fieldY = y + (entryHeight - 20) / 2; // 总高度20，垂直居中
+                int fieldWidth = isIndented ? 64 : 78;
+                int fieldHeight = isIndented ? 16 : 18;
+                int totalWidth = fieldWidth + 2; // 含边框
+                int totalHeight = fieldHeight + 2;
+                int fieldX = x + entryWidth - totalWidth - 15;
+                int fieldY = y + (entryHeight - totalHeight) / 2;
                 
                 levelField = new TextFieldWidget(textRenderer, fieldX, fieldY, fieldWidth, fieldHeight, Text.empty());
                 levelField.setText(String.valueOf(level));
@@ -724,49 +796,45 @@ public class ConfigScreen extends Screen {
                     try {
                         int newLevel = Integer.parseInt(text);
                         if (newLevel >= 1 && newLevel <= 255) {
-                            // 有效输入，更新等级并显示白色文本
                             level = newLevel;
-                            // 更新enchantmentLevels映射
                             ConfigScreen.this.enchantmentLevels.put(enchantmentId, newLevel);
                             levelField.setEditableColor(0xFFFFFF);
                         } else {
-                            // 超出范围，保持原值但显示红色文本提示
-                            levelField.setEditableColor(0xFF6666); // 红色提示
-                            // 不更新level值，允许用户继续编辑
+                            levelField.setEditableColor(0xFF6666);
                         }
                     } catch (NumberFormatException e) {
-                        // 非法输入（包括空字符串），保持原值但显示红色文本提示
-                        levelField.setEditableColor(0xFF6666); // 红色提示
-                        // 不更新level值，允许用户继续编辑
+                        levelField.setEditableColor(0xFF6666);
                     }
                 });
-                // 使用原版输入框样式
                 levelField.setEditableColor(0xFFFFFF);
                 levelField.setUneditableColor(0xFFFFFF);
-                levelField.setMaxLength(3); // 最多3位数（如255）
+                levelField.setMaxLength(3);
 
-                levelField.setEditable(!isDisabled);
-                levelField.setFocusUnlocked(!isDisabled);
+                levelField.setEditable(true);
+                levelField.setFocusUnlocked(true);
                 levelField.setFocused(false);
                 
-                // 将输入框添加到屏幕的可交互组件中
                 ConfigScreen.this.addSelectableChild(levelField);
                 
                 initialized = true;
             }
             
             // 更新输入框位置和大小
-            int fieldX = x + entryWidth - 80 - 15; // 总宽度80，右侧留15像素边距，确保完全可见
-            int fieldY = y + (entryHeight - 20) / 2; // 总高度20，垂直居中
+            int fieldWidth = isIndented ? 64 : 78;
+            int fieldHeight = isIndented ? 16 : 18;
+            int totalWidth = fieldWidth + 2;
+            int totalHeight = fieldHeight + 2;
+            int fieldX = x + entryWidth - totalWidth - 15;
+            int fieldY = y + (entryHeight - totalHeight) / 2;
             levelField.setPosition(fieldX, fieldY);
             
-            // 渲染输入框（使用原版样式）
+            // 渲染输入框
             levelField.render(context, mouseX, mouseY, tickDelta);
         }
         
         @Override
         public boolean mouseClicked(double mouseX, double mouseY, int button) {
-            if (!isDisabled && levelField != null && levelField.mouseClicked(mouseX, mouseY, button)) {
+            if (levelField != null && levelField.mouseClicked(mouseX, mouseY, button)) {
                 // 移除所有其他输入框的焦点
                 for (EnchantmentEntry entry : ConfigScreen.this.allEntries) {
                     if (entry != this && entry.levelField != null) {
@@ -1410,21 +1478,24 @@ public class ConfigScreen extends Screen {
         
         private void handleButtonClick() {
             if (ConfigScreen.this.restoreDefaultsButtonState == 0) {
-                // 第一步：显示确认提示
                 ConfigScreen.this.restoreDefaultsButtonState = 1;
-                // 刷新列表以更新按钮文本
                 updateListContent();
             } else if (ConfigScreen.this.restoreDefaultsButtonState == 1) {
-                // 第二步：执行恢复默认操作并显示"已恢复!"
                 ConfigScreen.this.restoreDefaultsButtonState = 2;
                 ConfigScreen.this.restoreDefaultsButtonTime = System.currentTimeMillis();
                 
-                // 执行恢复默认操作 - 调用 EnchantmentConfig 的方法
-                EnchantmentConfig.resetToDefaults();
-                
-                // 重新从配置获取所有等级
-                ConfigScreen.this.enchantmentLevels.clear();
-                ConfigScreen.this.enchantmentLevels.putAll(EnchantmentConfig.getAllLevels());
+                if (!isReadOnly) {
+                    // 正常模式：调用 EnchantmentConfig 的方法
+                    EnchantmentConfig.resetToDefaults();
+                    
+                    // 重新从配置获取所有等级
+                    ConfigScreen.this.enchantmentLevels.clear();
+                    ConfigScreen.this.enchantmentLevels.putAll(EnchantmentConfig.getAllLevels());
+                } else {
+                    // 只读模式：仅重置UI本地状态
+                    ConfigScreen.this.enchantmentLevels.clear();
+                    ConfigScreen.this.enchantmentLevels.putAll(EnchantmentConfig.getDefaultLevels());
+                }
                 
                 // 清除分组展开状态，确保所有分组都初始化为收起状态
                 ConfigScreen.this.groupExpandedStates.clear();
