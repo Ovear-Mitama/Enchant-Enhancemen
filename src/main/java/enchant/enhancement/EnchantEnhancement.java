@@ -1,10 +1,11 @@
 package enchant.enhancement;
 
+import enchant.enhancement.config.EnchantmentConfig;
+import enchant.enhancement.event.ServerPlayerJoinListener;
+import enchant.enhancement.platform.EnchantEnhancementPlatform;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
-import enchant.enhancement.config.EnchantmentConfig;
-import enchant.enhancement.event.ServerPlayerJoinListener;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,6 +17,9 @@ public class EnchantEnhancement implements ModInitializer {
 
 	@Override
 	public void onInitialize() {
+		// 注入平台实现（配置目录等）
+		EnchantEnhancementPlatform.setInstance(new EnchantEnhancementPlatformImpl());
+
 		// 服务端启动时初始化（专用服务器和LAN集成服务器统一处理）
 		ServerLifecycleEvents.SERVER_STARTING.register(server -> {
 			EnchantmentConfig.setIsServer(true);

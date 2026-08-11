@@ -34,5 +34,8 @@ build/classes/
 # Local configuration files
 local.properties
 
+# Reasonix
+.reasonix/
+
 # Test reports
 build/reports/

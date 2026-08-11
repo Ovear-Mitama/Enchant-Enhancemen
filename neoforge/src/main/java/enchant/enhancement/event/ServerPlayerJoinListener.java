@@ -3,10 +3,11 @@ package enchant.enhancement.event;
 import enchant.enhancement.config.EnchantmentConfig;
 import enchant.enhancement.network.ConfigSyncPacket;
 import enchant.enhancement.network.EnchantNetwork;
-import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
-import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerEvent;
+import net.neoforged.neoforge.network.PacketDistributor;
 
 import java.util.HashMap;
 import java.util.Iterator;
@@ -18,20 +19,21 @@ public class ServerPlayerJoinListener {
     // 记录需要同步的玩家及其延迟计时器
     private static final Map<ServerPlayer, Integer> pendingSyncPlayers = new ConcurrentHashMap<>();
 
-    public static void register(MinecraftServer serverInstance) {
-        server = serverInstance;
-
-        // 注册玩家加入事件
-        ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
-            ServerPlayer player = handler.getPlayer();
+    @SubscribeEvent
+    public static void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
+        if (event.getEntity() instanceof ServerPlayer player) {
+            server = player.getServer();
             // 40 tick 延迟后同步配置
             pendingSyncPlayers.put(player, 40);
-        });
+        }
+    }
 
-        // 注册玩家断开连接事件，清理待同步记录
-        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
-            pendingSyncPlayers.remove(handler.getPlayer());
-        });
+    @SubscribeEvent
+    public static void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
+        if (event.getEntity() instanceof ServerPlayer player) {
+            // 清理待同步记录
+            pendingSyncPlayers.remove(player);
+        }
     }
 
     // 每tick调用，处理延迟同步队列
@@ -69,7 +71,7 @@ public class ServerPlayerJoinListener {
         EnchantNetwork.ConfigSyncPayload payload = new EnchantNetwork.ConfigSyncPayload(packet);
 
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-            ServerPlayNetworking.send(player, payload);
+            PacketDistributor.sendToPlayer(player, payload);
         }
     }
 
@@ -95,6 +97,6 @@ public class ServerPlayerJoinListener {
         // 创建并发送数据包
         ConfigSyncPacket packet = new ConfigSyncPacket(generalConfig, enchantmentsConfig);
         EnchantNetwork.ConfigSyncPayload payload = new EnchantNetwork.ConfigSyncPayload(packet);
-        ServerPlayNetworking.send(player, payload);
+        PacketDistributor.sendToPlayer(player, payload);
     }
 }

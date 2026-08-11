@@ -1,8 +1,8 @@
 package enchant.enhancement;
 
-import net.fabricmc.api.ClientModInitializer;
 import enchant.enhancement.config.EnchantmentConfig;
 import enchant.enhancement.network.EnchantNetwork;
+import net.fabricmc.api.ClientModInitializer;
 
 public class EnchantEnhancementClient implements ClientModInitializer {
     @Override
